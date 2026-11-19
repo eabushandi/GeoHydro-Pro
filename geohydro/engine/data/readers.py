@@ -315,6 +315,8 @@ def _cell_to_str(v) -> str:
         if v.is_integer() and abs(v) < 1e15:
             return str(int(v))
         return repr(v)
+    if isinstance(v, datetime) and v.time() == time(0, 0):
+        return v.date().isoformat()
     if isinstance(v, (datetime, date, time)):
         return v.isoformat()
     return str(v)

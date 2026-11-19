@@ -57,27 +57,31 @@ def statistics_html(ds: PointDataset) -> str:
     s = ds.spatial_statistics()
     u, zu = ds.xy_units, ds.z_units
     rows_z = [
-        ("Count", z.get("count")), ("Minimum", z.get("minimum")), ("Maximum", z.get("maximum")),
+        ("Count", z.get("count"), "-"), ("Minimum", z.get("minimum")), ("Maximum", z.get("maximum")),
         ("Range", z.get("range")), ("Mean", z.get("mean")), ("Median", z.get("median")),
         ("1st quartile", z.get("q1")), ("3rd quartile", z.get("q3")),
-        ("Standard deviation (n-1)", z.get("std")), ("Variance (n-1)", z.get("variance")),
-        ("Coefficient of variation", z.get("coefficient_of_variation")),
-        ("Skewness (adjusted)", z.get("skewness")),
+        ("Standard deviation (n-1)", z.get("std")), ("Variance (n-1)", z.get("variance"), "²"),
+        ("Coefficient of variation", z.get("coefficient_of_variation"), "-"),
+        ("Skewness (adjusted)", z.get("skewness"), "-"),
     ]
     rows_s = [
-        ("Points", s.get("count")), ("X min", s.get("x_min")), ("X max", s.get("x_max")),
+        ("Points", s.get("count"), "-"), ("X min", s.get("x_min")), ("X max", s.get("x_max")),
         ("Y min", s.get("y_min")), ("Y max", s.get("y_max")), ("Extent width", s.get("width")),
         ("Extent height", s.get("height")), ("Mean nearest-neighbour distance", s.get("nn_mean")),
         ("Min nearest-neighbour distance", s.get("nn_min")),
         ("Max nearest-neighbour distance", s.get("nn_max")),
-        ("Point density (per unit²)", s.get("density_per_unit_area")),
+        ("Point density", s.get("density_per_unit_area"), "points per unit²"),
     ]
 
     def table(rows, unit):
-        return "<table>" + "".join(
-            f"<tr><th>{html.escape(k)}</th><td class='num'>{fmt_num(v)}</td><td class='muted'>{unit}</td></tr>"
-            for k, v in rows
-        ) + "</table>"
+        out = []
+        for row in rows:
+            k, v = row[0], row[1]
+            u = unit if len(row) < 3 else (unit + row[2] if row[2] == "²" else row[2])
+            u = "" if u == "-" else u
+            out.append(f"<tr><th>{html.escape(k)}</th><td class='num'>{fmt_num(v)}</td>"
+                       f"<td class='muted'>{html.escape(u)}</td></tr>")
+        return "<table>" + "".join(out) + "</table>"
 
     zname = html.escape(ds.z_label)
     out = [CSS, f"<h2>{html.escape(ds.name)} — statistics</h2>",

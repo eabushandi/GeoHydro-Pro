@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geohydro-pro"
+version = "0.1.0"
+description = "GeoHydro Pro - scientific mapping, geospatial analysis, hydrology and environmental engineering platform"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "Proprietary - all rights reserved" }
+authors = [{ name = "GeoHydro Pro" }]
+classifiers = [
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Hydrology",
+]
+dependencies = [
+    "numpy>=1.26,<3",
+    "pandas>=2.1,<4",
+    "scipy>=1.11,<2",
+    "openpyxl>=3.1,<4",
+    "pyproj>=3.6,<4",
+    "matplotlib>=3.8,<4",
+    "PySide6>=6.8,<6.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-qt>=4.4", "pillow>=10"]
+
+[project.scripts]
+geohydro-pro = "geohydro.desktop.app:main"
+
+[project.gui-scripts]
+geohydro-pro-gui = "geohydro.desktop.app:main"
+
+[tool.setuptools.packages.find]
+include = ["geohydro*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
