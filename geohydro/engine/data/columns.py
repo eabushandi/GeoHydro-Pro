@@ -10,11 +10,13 @@ from .parsing import column_numeric_fraction
 
 _X = ("x", "easting", "east", "e", "lon", "long", "longitude", "xcoord", "x_coord", "utm_e", "utme")
 _Y = ("y", "northing", "north", "n", "lat", "latitude", "ycoord", "y_coord", "utm_n", "utmn")
+# Surface-type quantities are preferred over generic values/concentrations
+# when both are present (e.g. a water level column beats a TDS column).
 _Z = (
-    "z", "elevation", "elev", "height", "altitude", "alt", "value", "depth", "head",
-    "water_level", "waterlevel", "wl", "gwl", "level", "concentration", "conc", "tds", "zcoord",
-    "z_coord", "bathymetry", "dem", "rl",
+    "z", "elevation", "elev", "height", "altitude", "alt", "depth", "head",
+    "water_level", "waterlevel", "wl", "gwl", "level", "zcoord", "z_coord", "bathymetry", "dem", "rl",
 )
+_Z_SECONDARY = ("value", "val", "concentration", "conc", "tds", "result")
 
 
 def _norm(name: str) -> str:
@@ -55,7 +57,7 @@ def guess_xyz(frame: pd.DataFrame, decimal: str = ".") -> tuple[str | None, str 
 
     x = pick(_X, set())
     y = pick(_Y, {x})
-    z = pick(_Z, {x, y})
+    z = pick(_Z, {x, y}) or pick(_Z_SECONDARY, {x, y})
     remaining = [c for c in numeric if c not in {x, y, z}]
     if x is None and remaining:
         x = remaining.pop(0)
