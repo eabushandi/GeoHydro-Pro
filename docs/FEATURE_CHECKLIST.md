@@ -19,7 +19,7 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | 12 | Functional data preview (parsed, raw, point locations, live QC) | ✅ | `test_import_wizard_*` |
 | 13 | Project save/load, versioned format | ✅ | `test_project_storage.py`, `test_save_open_roundtrip_through_ui` |
 | 14 | Sample scientific datasets | ✅ | `samples/` (synthetic, documented generator) |
-| 15 | Run the application | 🟡 | Run offscreen on Linux with screenshots. **Not run on Windows.** |
+| 15 | Run the application | 🟡 | Run offscreen on Linux and on Windows Server 2022/2025 (CI). Not yet run interactively on desktop Windows 10/11. |
 | 16–17 | Automated tests, fix errors | ✅ | 88 passed — `docs/TEST_RESULTS.md` |
 
 ### Data import workflow (section 6)
@@ -61,7 +61,7 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | Project integrity validation | ✅ |
 | i18n architecture (RTL switch, translator hook) | 🟡 hooks only; no translations |
 | Web application foundation (roadmap Phase 1 item) | ⬜ not started — out of this thread's scope |
-| CI workflow (Windows + Linux) | 🟡 written, not yet executed (no repository) |
+| CI workflow (Windows + Linux) | ✅ 9/9 jobs pass (windows-2022, windows-2025, ubuntu-24.04 × Py 3.11–3.13) |
 | Undo / redo | ⬜ Phase 2 |
 
 ## Later phases (all ⬜ planned, visible but disabled in the UI)

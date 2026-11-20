@@ -4,7 +4,7 @@
 
 | Platform | Status |
 |---|---|
-| Windows 10 / 11 (64-bit) | **Target platform. Not yet verified on real Windows hardware.** A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the full suite on `windows-latest`, but it has not been run because no repository is connected yet. |
+| Windows 10 / 11 (64-bit) | **Target platform.** Full test suite passes on GitHub Actions Windows Server 2022 (build 20348) and Server 2025 (build 26100), Python 3.11–3.13. Not yet checked interactively on desktop Windows 10/11. |
 | Linux (Ubuntu 24.04, x86-64) | Verified: development environment, tests and offscreen screenshots. |
 | macOS | Expected to work (all dependencies publish macOS wheels); not tested. |
 

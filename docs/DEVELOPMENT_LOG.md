@@ -39,3 +39,14 @@ machine is available in this environment.
   The reader was correct; the test was changed to use values stored exactly.
 
 **Result:** 88 automated tests pass (Linux, offscreen). Screenshots in `docs/screenshots/`.
+
+## 2026-11-20 — Repository and Windows CI
+
+* Published to the private GitHub repository `eabushandi/GeoHydro-Pro`. Secrets and
+  personal-data review before the first push: nothing found. Added `.gitignore` and
+  `.gitattributes`, extended README (dependencies, platform status, roadmap).
+* CI matrix: `windows-2022`, `windows-2025`, `ubuntu-24.04` × Python 3.11, 3.12, 3.13.
+  First run (44670581483): 9/9 jobs green, 88/88 tests each, no code changes needed.
+* Open item: GitHub warns that `actions/checkout@v4`, `setup-python@v5` and
+  `upload-artifact@v4` target Node.js 20 (forced onto Node.js 24 by the runner). Not a
+  failure; bump the action versions when convenient.

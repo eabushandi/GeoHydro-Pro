@@ -4,7 +4,24 @@ Run: 2026-11-19, Linux (Ubuntu 24.04, x86-64), Python 3.13.18, Qt offscreen plat
 
 **Result: 88 passed in 11.53s**
 
-Not run on Windows (no Windows environment available; CI workflow prepared).
+## GitHub Actions (2026-11-20, run 44670581483, commit bfb71e2)
+
+All 9 jobs passed: 88 of 88 tests each, plus `geohydro-pro --version` and the offscreen
+screenshot script driving the real application.
+
+| Runner | Reported OS | Python 3.11 | Python 3.12 | Python 3.13 |
+|---|---|---|---|---|
+| `windows-2022` | Windows Server 2022 Datacenter, 10.0.20348 | 88 passed | 88 passed | 88 passed |
+| `windows-2025` | Windows Server 2025 Datacenter, 10.0.26100 | 88 passed | 88 passed | 88 passed |
+| `ubuntu-24.04` | Ubuntu 24.04 | 88 passed | 88 passed | 88 passed |
+
+Build 20348 shares the Windows 10 21H2-era kernel; build 26100 is the Windows 11 24H2 code
+base. These are Windows Server images running Qt offscreen, so they are strong evidence for,
+but not proof of, desktop Windows 10/11 compatibility. Still unverified: an interactive run
+on real Windows 10 and Windows 11 desktops (on-screen rendering, high-DPI scaling, file
+dialogs, fonts).
+
+## Local run
 
 | Test file | Tests | Passed |
 |---|---|---|
