@@ -1,4 +1,4 @@
-# GeoHydro Pro desktop + shared engine - runtime dependencies (Phase 1)
+# GeoHydro Pro desktop + shared engine - runtime dependencies
 # Version ranges are the supported constraints; exact versions verified in
 # development are listed in docs/INSTALL.md.
 numpy>=1.26,<3
@@ -8,3 +8,7 @@ openpyxl>=3.1,<4
 pyproj>=3.6,<4
 matplotlib>=3.8,<4
 PySide6>=6.8,<6.11
+# GIS stack (Phase 3). rasterio and pyogrio wheels each bundle GDAL; shapely bundles GEOS.
+rasterio>=1.4,<2
+pyogrio>=0.9,<1
+shapely>=2.0,<3

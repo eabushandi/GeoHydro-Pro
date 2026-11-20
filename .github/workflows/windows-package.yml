@@ -1,0 +1,75 @@
+name: windows-package
+
+# Builds the standalone Windows package on every push to main and on tags.
+# A tag "v*" also publishes a GitHub release with the installer and the zip.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build, self-test and package
+        shell: pwsh
+        run: packaging\build_windows.ps1
+
+      - name: Install silently and self-test the installed copy
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\GeoHydroPro-*-Setup.exe | Select-Object -First 1
+          $dir = "$env:RUNNER_TEMP\GeoHydroProInstall"
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/DIR=`"$dir`"", "/TASKS=" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer failed: $($p.ExitCode)" }
+          $report = "$env:RUNNER_TEMP\installed-selftest.txt"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $t = Start-Process "$dir\GeoHydroPro.exe" -ArgumentList "--selftest", "--report", "`"$report`"" -Wait -PassThru
+          Get-Content $report
+          if ($t.ExitCode -ne 0) { throw "installed self-test failed" }
+          $u = Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "uninstaller failed: $($u.ExitCode)" }
+          Start-Sleep -Seconds 3
+          if (Test-Path "$dir\GeoHydroPro.exe") { throw "uninstall left the executable behind" }
+          Write-Host "Install, self-test and uninstall OK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeoHydroPro-windows
+          path: |
+            dist/GeoHydroPro-*-Setup.exe
+            dist/GeoHydroPro-*-win64.zip
+            dist/GeoHydroPro-*-selftest.txt
+          retention-days: 30
+
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = "docs/release-notes/$tag.md"
+          $files = Get-ChildItem dist\GeoHydroPro-*-Setup.exe, dist\GeoHydroPro-*-win64.zip, dist\GeoHydroPro-*-selftest.txt | ForEach-Object { $_.FullName }
+          if (Test-Path $notes) { gh release create $tag @files --title "GeoHydro Pro $tag" --notes-file $notes --prerelease }
+          else { gh release create $tag @files --title "GeoHydro Pro $tag" --generate-notes --prerelease }

@@ -1,6 +1,7 @@
 """Desktop application entry point.
 
     python -m geohydro.desktop [project.ghproj] [--sample]
+    python -m geohydro.desktop --selftest [--report FILE]
 """
 
 from __future__ import annotations
@@ -40,8 +41,14 @@ def main(argv=None) -> int:
     parser.add_argument("project", nargs="?", help="project file (.ghproj) to open")
     parser.add_argument("--sample", action="store_true", help="open the bundled sample project")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
+    parser.add_argument("--selftest", action="store_true",
+                        help="check the installation without user interaction and exit")
+    parser.add_argument("--report", help="file for the --selftest report")
     args, qt_args = parser.parse_known_args(argv if argv is not None else sys.argv[1:])
     logging.basicConfig(level=logging.WARNING)
+    if args.selftest:
+        from geohydro.selftest import run
+        return run(args.report)
 
     app = create_app([sys.argv[0]] + qt_args)
     from .main_window import MainWindow

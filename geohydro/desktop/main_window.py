@@ -59,10 +59,7 @@ from .workers import TaskRunner
 
 log = logging.getLogger("geohydro.desktop")
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SAMPLE_PROJECT = REPO_ROOT / "samples" / "sample_project.ghproj"
-SAMPLE_DATA_DIR = REPO_ROOT / "samples" / "data"
-DOCS_DIR = REPO_ROOT / "docs"
+from geohydro.paths import DOCS_DIR, SAMPLE_DATA_DIR, SAMPLE_PROJECT  # noqa: E402
 PROJECT_FILTER = f"GeoHydro Pro project (*{FILE_EXTENSION})"
 MAX_RECENT = 8
 
