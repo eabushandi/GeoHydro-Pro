@@ -51,3 +51,15 @@ class MapError(GeoHydroError):
 
 class CancelledError(GeoHydroError):
     """The user cancelled a long-running calculation."""
+
+
+class VectorError(GeoHydroError):
+    """Reading, writing or processing vector (feature) data failed."""
+
+
+class RasterError(GeoHydroError):
+    """Reading, writing or processing raster data failed."""
+
+
+class GridMathError(GeoHydroError):
+    """A grid calculation could not be carried out (bad expression, incompatible grids...)."""
