@@ -71,5 +71,16 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $notes = "docs/release-notes/$tag.md"
           $files = Get-ChildItem dist\GeoHydroPro-*-Setup.exe, dist\GeoHydroPro-*-win64.zip, dist\GeoHydroPro-*-selftest.txt | ForEach-Object { $_.FullName }
-          if (Test-Path $notes) { gh release create $tag @files --title "GeoHydro Pro $tag" --notes-file $notes --prerelease }
-          else { gh release create $tag @files --title "GeoHydro Pro $tag" --generate-notes --prerelease }
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # Release already created on GitHub (for example from the web page): attach the build.
+            $global:LASTEXITCODE = 0
+            gh release upload $tag @files --clobber
+            if (Test-Path $notes) { gh release edit $tag --title "GeoHydro Pro $tag" --notes-file $notes --prerelease }
+          }
+          else {
+            $global:LASTEXITCODE = 0
+            if (Test-Path $notes) { gh release create $tag @files --title "GeoHydro Pro $tag" --notes-file $notes --prerelease }
+            else { gh release create $tag @files --title "GeoHydro Pro $tag" --generate-notes --prerelease }
+          }
+          if ($LASTEXITCODE -ne 0) { throw "publishing the release failed" }
