@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (QHBoxLayout, QLabel, QListWidget, QListWidgetItem
 from geohydro.engine.errors import MapError
 from geohydro.engine.mapping.levels import PALETTES, LevelSpec
 from geohydro.engine.mapping.model import (LAYER_TITLES, PAGE_SIZES_MM, POSITIONS, ColourReliefLayer,
-                                           ContourLayer, FilledContourLayer, MapDocument,
-                                           PostLayer)
+                                           ContourLayer, FilledContourLayer, ImageLayer,
+                                           MapDocument, PostLayer, VectorLayer, layer_source)
 from geohydro.engine.mapping.render import render_map
 
 from .. import icons, theme
@@ -66,6 +66,8 @@ class MapView(QWidget):
     cursorMoved = Signal(object, object, object)
     exportRequested = Signal(str)
     addLayerRequested = Signal(str, str)  # map id, layer type
+    logoRequested = Signal(str)  # map id
+    textRequested = Signal(str)  # map id
 
     def __init__(self, doc: MapDocument, project, parent=None):
         super().__init__(parent)
@@ -104,6 +106,17 @@ class MapView(QWidget):
             a.triggered.connect(lambda _=False, t=t: self.addLayerRequested.emit(self.doc.id, t))
             m.addAction(a)
         self.btn_add.setMenu(m)
+        self.btn_insert = QToolButton()
+        self.btn_insert.setText("Insert")
+        self.btn_insert.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self.btn_insert.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        im = QMenu(self)
+        for title, slot in (("Text Box…", lambda: self.textRequested.emit(self.doc.id)),
+                            ("Logo Image…", lambda: self.logoRequested.emit(self.doc.id))):
+            a = QAction(title, im)
+            a.triggered.connect(slot)
+            im.addAction(a)
+        self.btn_insert.setMenu(im)
         self.btn_fit = QPushButton("Fit Page")
         self.btn_100 = QPushButton("100 %")
         self.btn_extent = QPushButton("Keep View Extent")
@@ -111,7 +124,7 @@ class MapView(QWidget):
         self.btn_reset_extent = QPushButton("Full Extent")
         self.btn_export = QPushButton("Export…")
         self.btn_export.setIcon(icons.icon("export"))
-        for w in (self.btn_page, self.btn_add, self.btn_fit, self.btn_100, self.btn_extent,
+        for w in (self.btn_page, self.btn_add, self.btn_insert, self.btn_fit, self.btn_100, self.btn_extent,
                   self.btn_reset_extent, self.btn_export):
             tb.addWidget(w)
         tb.addStretch(1)
@@ -256,14 +269,15 @@ class MapView(QWidget):
         self.layers.blockSignals(True)
         self.layers.clear()
         for lyr in reversed(self.doc.layers):  # top layer first
-            src = self.project.item(getattr(lyr, "grid_id", "") or getattr(lyr, "dataset_id", ""))
+            src = self.project.item(layer_source(lyr))
             it = QListWidgetItem(f"{lyr.name}  —  {LAYER_TITLES[lyr.type]}")
             it.setData(Qt.ItemDataRole.UserRole, lyr.id)
             it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             it.setCheckState(Qt.CheckState.Checked if lyr.visible else Qt.CheckState.Unchecked)
             it.setToolTip(f"Source: {src.name if src else 'missing'}")
             it.setIcon(icons.icon({"contour": "contour", "filled_contour": "filled",
-                                   "colour_relief": "relief", "post": "points"}[lyr.type]))
+                                   "colour_relief": "relief", "post": "points",
+                                   "vector": "vector", "image": "raster"}[lyr.type]))
             self.layers.addItem(it)
             if lyr.id == select_id:
                 self.layers.setCurrentItem(it)
@@ -352,12 +366,44 @@ def map_props(doc: MapDocument) -> list[Prop]:
              "map.graticule.visible"),
         Prop("Coordinate grid", "Grid lines", _yn(doc.graticule.get("lines", True)), YES_NO,
              "map.graticule.lines"),
-    ]
+        Prop("Coordinate grid", "Latitude / longitude", _yn(doc.graticule.get("geographic")),
+             YES_NO, "map.graticule.geographic",
+             "Draw a geographic graticule (degrees and minutes) on a projected map"),
+        Prop("Coordinate grid", "Lat/lon interval (°)",
+             "" if doc.graticule.get("interval_deg") is None else doc.graticule["interval_deg"],
+             "text", "map.graticule.interval_deg", "Blank = automatic"),
+        Prop("Legend", "Show", _yn(doc.legend.get("visible")), YES_NO, "map.legend.visible"),
+        Prop("Legend", "Title", doc.legend.get("title", ""), "text", "map.legend.title"),
+        Prop("Legend", "Position", doc.legend.get("position", "lower right"), POSITIONS,
+             "map.legend.position"),
+        Prop("Legend", "Text size (pt)", doc.legend.get("size", 8.0), "text", "map.legend.size"),
+        Prop("Inset (location map)", "Show", _yn(doc.inset.get("visible")), YES_NO,
+             "map.inset.visible", "Small overview map with the main map extent outlined"),
+        Prop("Inset (location map)", "Position", doc.inset.get("position", "lower right"),
+             POSITIONS, "map.inset.position"),
+        Prop("Inset (location map)", "Size (fraction of frame)", doc.inset.get("size", 0.28),
+             "text", "map.inset.size"),
+        Prop("Logo", "Show", _yn(doc.logo.get("visible")) if doc.logo.get("data") else
+             "No logo (Insert ▸ Logo Image…)", YES_NO if doc.logo.get("data") else None,
+             "map.logo.visible" if doc.logo.get("data") else ""),
+        Prop("Logo", "Position", doc.logo.get("position", "upper left"), POSITIONS,
+             "map.logo.position"),
+        Prop("Logo", "Width (mm)", doc.logo.get("width_mm", 25.0), "text", "map.logo.width_mm"),
+    ] + [p for i, tb in enumerate(doc.text_boxes, 1) for p in (
+        Prop(f"Text box {i}", "Text", tb.get("text", ""), "text", f"map.text.{tb['id']}.text",
+             "Clear the text to delete the box"),
+        Prop(f"Text box {i}", "X (0–1 of frame)", tb.get("x", 0.02), "text",
+             f"map.text.{tb['id']}.x"),
+        Prop(f"Text box {i}", "Y (0–1 of frame)", tb.get("y", 0.02), "text",
+             f"map.text.{tb['id']}.y"),
+        Prop(f"Text box {i}", "Size (pt)", tb.get("size", 8.0), "text",
+             f"map.text.{tb['id']}.size"),
+        Prop(f"Text box {i}", "Frame", _yn(tb.get("frame", True)), YES_NO,
+             f"map.text.{tb['id']}.frame"))]
 
 
 def layer_props(lyr, project) -> list[Prop]:
-    src_id = getattr(lyr, "grid_id", "") or getattr(lyr, "dataset_id", "")
-    src = project.item(src_id)
+    src = project.item(layer_source(lyr))
     out = [Prop("Layer", "Name", lyr.name, "text", "layer.name"),
            Prop("Layer", "Type", LAYER_TITLES[lyr.type]),
            Prop("Layer", "Source", src.name if src else "missing"),
@@ -402,6 +448,9 @@ def layer_props(lyr, project) -> list[Prop]:
                 Prop("Colours", "Maximum Z", "" if lyr.z_max is None else lyr.z_max, "text",
                      "layer.z_max", "Blank = grid maximum"),
                 Prop("Colours", "Smooth display", _yn(lyr.smooth), YES_NO, "layer.smooth"),
+                Prop("Colours", "Transparent below", "" if lyr.clear_below is None else
+                     lyr.clear_below, "text", "layer.clear_below",
+                     "Values below this are not drawn (blank = draw all)"),
                 Prop("Colours", "Colour scale", _yn(lyr.show_colorbar), YES_NO,
                      "layer.show_colorbar")]
     if isinstance(lyr, PostLayer):
@@ -417,6 +466,40 @@ def layer_props(lyr, project) -> list[Prop]:
                      "layer.label_column"),
                 Prop("Labels", "Decimals", lyr.label_decimals, "text", "layer.label_decimals"),
                 Prop("Labels", "Size (pt)", lyr.label_size, "text", "layer.label_size")]
+    if isinstance(lyr, VectorLayer):
+        fields = list(src.attributes.columns) if src is not None else []
+        fam = src.family if src is not None else "?"
+        out += [Prop("Layer", "Geometry", fam),
+                Prop("Symbology", "Style", lyr.symbology, ["single", "categorized", "graduated"],
+                     "layer.symbology",
+                     "single colour, one colour per category, or classes of a numeric field"),
+                Prop("Symbology", "Field", lyr.field or "(none)", ["(none)"] + fields,
+                     "layer.field"),
+                Prop("Symbology", "Palette", lyr.palette, list(PALETTES) + ["tab10", "Set2",
+                                                                            "Paired"],
+                     "layer.palette"),
+                Prop("Symbology", "Reverse palette", _yn(lyr.reverse), YES_NO, "layer.reverse"),
+                Prop("Symbology", "Classes (graduated)", lyr.classes, "text", "layer.classes"),
+                Prop("Symbology", "Classification", lyr.classification,
+                     ["quantile", "equal_interval"], "layer.classification"),
+                Prop("Style", "Fill colour", lyr.face_color, "text", "layer.face_color"),
+                Prop("Style", "Outline / line colour", lyr.edge_color, "text", "layer.edge_color"),
+                Prop("Style", "Line width (pt)", lyr.line_width, "text", "layer.line_width"),
+                Prop("Style", "Fill polygons", _yn(lyr.fill), YES_NO, "layer.fill"),
+                Prop("Style", "Marker", lyr.marker, ["o", "s", "^", "v", "D", "+", "x", "*"],
+                     "layer.marker"),
+                Prop("Style", "Marker size (pt²)", lyr.marker_size, "text", "layer.marker_size"),
+                Prop("Labels", "Label field", lyr.label_field or "(none)", ["(none)"] + fields,
+                     "layer.label_field"),
+                Prop("Labels", "Size (pt)", lyr.label_size, "text", "layer.label_size"),
+                Prop("Legend", "Show in legend", _yn(lyr.show_in_legend), YES_NO,
+                     "layer.show_in_legend"),
+                Prop("Legend", "Show in inset map", _yn(lyr.show_in_inset), YES_NO,
+                     "layer.show_in_inset")]
+    if isinstance(lyr, ImageLayer):
+        out += [Prop("Image", "Pixels", f"{src.shape[1]} × {src.shape[0]}" if src else "—"),
+                Prop("Image", "Show in inset map", _yn(lyr.show_in_inset), YES_NO,
+                     "layer.show_in_inset")]
     return out
 
 
@@ -473,8 +556,46 @@ def apply_edit(doc: MapDocument, layer_id: str | None, key: str, value: str) -> 
                 raise MapError(f"Position must be one of: {', '.join(POSITIONS)}.")
             el = getattr(doc, f.split(".")[0])
             el.position, el.xy = value, None
-        elif f in ("graticule.visible", "graticule.lines"):
+        elif f in ("graticule.visible", "graticule.lines", "graticule.geographic"):
             doc.graticule[f.split(".")[1]] = yes
+        elif f == "graticule.interval_deg":
+            doc.graticule["interval_deg"] = _num(value, float, allow_blank=True, lo=1 / 3600,
+                                                 hi=30)
+        elif f in ("legend.visible", "inset.visible", "logo.visible"):
+            getattr(doc, f.split(".")[0])["visible"] = yes
+        elif f in ("legend.position", "inset.position", "logo.position"):
+            if value not in POSITIONS:
+                raise MapError(f"Position must be one of: {', '.join(POSITIONS)}.")
+            d = getattr(doc, f.split(".")[0])
+            d["position"] = value
+            if "xy" in d:
+                d["xy"] = None
+        elif f == "legend.title":
+            doc.legend["title"] = value
+        elif f == "legend.size":
+            doc.legend["size"] = _num(value, float, lo=4, hi=30)
+        elif f == "inset.size":
+            doc.inset["size"] = _num(value, float, lo=0.1, hi=0.6)
+        elif f == "logo.width_mm":
+            doc.logo["width_mm"] = _num(value, float, lo=3, hi=200)
+        elif f.startswith("text."):
+            _, tid, attr = f.split(".", 2)
+            tb = next((t for t in doc.text_boxes if t.get("id") == tid), None)
+            if tb is None:
+                raise MapError("That text box no longer exists.")
+            if attr == "text":
+                if not str(value).strip():
+                    doc.text_boxes.remove(tb)
+                else:
+                    tb["text"] = value
+            elif attr in ("x", "y"):
+                tb[attr] = _num(value, float, lo=0, hi=1)
+            elif attr == "size":
+                tb["size"] = _num(value, float, lo=3, hi=72)
+            elif attr == "frame":
+                tb["frame"] = yes
+            else:
+                raise MapError(f"Unknown text box property {attr}.")
         else:
             raise MapError(f"Unknown map property {key}.")
         return
@@ -509,7 +630,7 @@ def apply_edit(doc: MapDocument, layer_id: str | None, key: str, value: str) -> 
                 lv.mode = "list"
         return
     bools = {"visible", "labels", "reverse", "show_colorbar", "smooth", "color_by_z",
-             "color_by_level"}
+             "color_by_level", "fill", "show_in_legend", "show_in_inset"}
     if f in bools:
         setattr(lyr, f, yes)
     elif f == "name":
@@ -518,7 +639,7 @@ def apply_edit(doc: MapDocument, layer_id: str | None, key: str, value: str) -> 
         lyr.name = value.strip()
     elif f == "opacity":
         lyr.opacity = _num(value, float, lo=0, hi=1)
-    elif f in ("line_width", "major_width", "label_size", "size"):
+    elif f in ("line_width", "major_width", "label_size", "size", "marker_size"):
         setattr(lyr, f, _num(value, float, lo=0, hi=200))
     elif f == "major_every":
         lyr.major_every = _num(value, int, lo=0, hi=100)
@@ -528,9 +649,30 @@ def apply_edit(doc: MapDocument, layer_id: str | None, key: str, value: str) -> 
     elif f in ("line_color", "face_color", "edge_color"):
         setattr(lyr, f, _colour(value))
     elif f == "palette":
-        if value not in PALETTES:
+        if value not in PALETTES and not (isinstance(lyr, VectorLayer)
+                                          and value in ("tab10", "Set2", "Paired")):
             raise MapError(f"Unknown palette '{value}'.")
         lyr.palette = value
+    elif f == "symbology":
+        if value not in ("single", "categorized", "graduated"):
+            raise MapError("Style must be single, categorized or graduated.")
+        if value != "single" and not lyr.field:
+            raise MapError("Choose a field first.")
+        lyr.symbology = value
+    elif f == "field":
+        lyr.field = None if value in ("", "(none)") else value
+        if lyr.field is None:
+            lyr.symbology = "single"
+    elif f == "label_field":
+        lyr.label_field = None if value in ("", "(none)") else value
+    elif f == "classes":
+        lyr.classes = _num(value, int, lo=2, hi=12)
+    elif f == "classification":
+        if value not in ("quantile", "equal_interval"):
+            raise MapError("Classification must be quantile or equal_interval.")
+        lyr.classification = value
+    elif f == "clear_below":
+        lyr.clear_below = _num(value, float, allow_blank=True)
     elif f in ("z_min", "z_max"):
         setattr(lyr, f, _num(value, float, allow_blank=True))
     elif f == "marker":

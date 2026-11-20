@@ -7,6 +7,7 @@ Checks, without user interaction, that a source install or the standalone
 Windows build is complete: every scientific library imports, PROJ and GDAL
 find their data files, the sample project opens and verifies, a grid can be
 computed and mapped, raster and vector files can be written and read back,
+the GIS demo project opens and its map exports,
 and the main window can be created. The exit code is 0 when every check
 passes. The report is written to ``--report`` (and to stdout when there is
 one), because the windowed Windows executable has no console.
@@ -119,6 +120,34 @@ def _checks(tmp: Path):
             raise RuntimeError(f"GDAL vector drivers missing: {missing}")
         return "GeoPackage write/read; drivers " + ", ".join(need)
 
+    def gis_engine():
+        import numpy as np
+
+        from geohydro.engine.gridmath.terrain import hillshade, slope
+        from geohydro.engine.mapping.render import export_map
+        from geohydro.engine.raster.io import read_raster_grid
+        from geohydro.engine.vector.io import read_vector
+        from geohydro.paths import GIS_SAMPLE_PROJECT, SAMPLE_DATA_DIR
+        from geohydro.project import load_project
+        gis = SAMPLE_DATA_DIR / "gis"
+        dem = read_raster_grid(gis / "dem_50m_utm39n.tif")
+        s = slope(dem)
+        hs = hillshade(dem)
+        if not (np.nanmax(s.z) > 0 and np.nanmax(hs.z) <= 255):
+            raise RuntimeError("terrain derivatives out of range")
+        n = sum(read_vector(gis / f).n_features for f in
+                ("site_boundary.geojson", "wadi_channels.shp", "land_use.gpkg"))
+        p = load_project(GIS_SAMPLE_PROJECT)
+        m = next(iter(p.maps.values()))
+        path, info = export_map(m, p.item, tmp / "selftest_gis.tif", dpi=80)
+        missing = [w for w in info.warnings if "missing" in w]
+        if missing:
+            raise RuntimeError("; ".join(missing))
+        return (f"GeoTIFF DEM {dem.geometry.nx}x{dem.geometry.ny}, slope + hillshade; "
+                f"{n} features from GeoJSON/Shapefile/GeoPackage; {GIS_SAMPLE_PROJECT.name}: "
+                f"{len(p.vectors)} vector layers, {len(p.images)} image, map -> TIFF "
+                f"{path.stat().st_size // 1024} KB")
+
     def main_window():
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtCore import QSettings
@@ -137,7 +166,7 @@ def _checks(tmp: Path):
     return [("Scientific libraries", libraries), ("PROJ database", proj_database),
             ("Sample project", sample_project), ("Gridding and map export", gridding_and_map),
             ("Raster I/O (GDAL)", raster_io), ("Vector I/O (GDAL)", vector_io),
-            ("Main window", main_window)]
+            ("GIS engine and demo project", gis_engine), ("Main window", main_window)]
 
 
 def run(report: str | None = None) -> int:

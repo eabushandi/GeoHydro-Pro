@@ -32,6 +32,7 @@ from geohydro.engine.data.dataset import utc_now
 from geohydro.engine.data.formats import file_dialog_filter
 from geohydro.engine.data.importer import import_point_file
 from geohydro.engine.data.qc import QCReport
+from geohydro.engine.mapping.model import layer_source
 from geohydro.engine.errors import (
     CRSError,
     GeoHydroError,
@@ -45,8 +46,10 @@ from geohydro.project.storage import project_manifest, verify_project_file
 from . import icons, theme
 from .dialogs.import_wizard import ImportWizard
 from .dialogs.misc import AboutDialog, CRSToolDialog, HistoryDialog
+from .documents.gis_documents import ImageDocument, VectorDocument
 from .documents.grid_document import GridDocument
 from .documents.map_document import MapView
+from .gis import GISMixin
 from .gridmap import GridMapMixin
 from .documents.dataset_document import DatasetDocument, fmt_num
 from .widgets.output_console import OutputConsole
@@ -59,7 +62,7 @@ from .workers import TaskRunner
 
 log = logging.getLogger("geohydro.desktop")
 
-from geohydro.paths import DOCS_DIR, SAMPLE_DATA_DIR, SAMPLE_PROJECT  # noqa: E402
+from geohydro.paths import DOCS_DIR, GIS_SAMPLE_PROJECT, SAMPLE_DATA_DIR, SAMPLE_PROJECT  # noqa: E402
 PROJECT_FILTER = f"GeoHydro Pro project (*{FILE_EXTENSION})"
 MAX_RECENT = 8
 
@@ -81,11 +84,14 @@ RIBBON_LABELS = {
     "coastal.transects": "Transects", "coastal.rates": "EPR · LRR · NSM", "coastal.profiles": "Beach Profiles",
     "flood.susceptibility": "Susceptibility", "flood.stormwater": "Stormwater",
     "gw.contours": "GW Levels", "gw.quality": "Water Quality", "reports.pdf": "PDF Report",
-    "reports.xlsx": "Excel Report",
+    "reports.xlsx": "Excel Report", "edit.undo": "Undo", "edit.redo": "Redo",
+    "grid.math": "Calculator", "grid_filter": "Filter", "grid_blank": "Blank", "grid_clip": "Clip",
+    "map.vector": "Vector / Image", "map.density": "Density", "terrain.aspect": "Aspect",
+    "terrain.curvature": "Curvature", "vector_to_points": "To Points",
 }
 
 
-class MainWindow(GridMapMixin, QMainWindow):
+class MainWindow(GISMixin, GridMapMixin, QMainWindow):
     def __init__(self, settings: QSettings | None = None, parent=None):
         super().__init__(parent)
         self.settings = settings or QSettings()
@@ -109,6 +115,7 @@ class MainWindow(GridMapMixin, QMainWindow):
         self.status = GeoStatusBar(self)
         self.setStatusBar(self.status)
         self._wire_phase2()
+        self._wire_gis()
 
         self._refresh_all()
         self._restore_state()
@@ -203,6 +210,8 @@ class MainWindow(GridMapMixin, QMainWindow):
         A("new", "New Project", self.new_project, "new", "Ctrl+N", tip="Create a new project")
         A("open", "Open Project…", lambda: self.open_project(), "open", "Ctrl+O", tip="Open a .ghproj project")
         A("open_sample", "Open Sample Project", self.open_sample_project, "folder")
+        A("open_gis_sample", "Open GIS Demo Project", lambda: self.open_sample_project(GIS_SAMPLE_PROJECT),
+          "folder", tip="Terrain, drainage, land use and flood-report density maps (synthetic data)")
         A("save", "Save Project", self.save_project, "save", "Ctrl+S", tip="Save the project")
         A("save_as", "Save Project As…", self.save_project_as, "save", "Ctrl+Shift+S")
         A("import", "Import Data…", lambda: self.import_data(), "import", "Ctrl+I",
@@ -233,6 +242,7 @@ class MainWindow(GridMapMixin, QMainWindow):
         A("about", f"About {APP_NAME}", lambda: AboutDialog(self).exec(), "info")
         self.actions["export_csv"].setEnabled(False)
         self._phase2_actions()
+        self._gis_actions()
 
         for key, ic in (
             ("edit.undo", None), ("data.import.raster", "raster"), ("data.import.vector", "vector"),
@@ -254,8 +264,6 @@ class MainWindow(GridMapMixin, QMainWindow):
             ("grid.math", "grid"), ("map.vector", "vector"), ("map.density", "points"),
         ):
             self._plan(key, ic)
-        self.actions["redo.planned"] = self._act("redo.planned", "Redo", cap="edit.undo")
-        self.actions["redo.planned"].setText(f"Redo (planned, Phase {capability('edit.undo').phase})")
 
     def _build_menus(self):
         from PySide6.QtWidgets import QMenuBar
@@ -274,10 +282,10 @@ class MainWindow(GridMapMixin, QMainWindow):
             return m
 
         self.recent_menu = self._make_recent_menu()
-        menu("&File", ["new", "open", "open_sample", self.recent_menu, None, "save", "save_as", None,
-                       "import", "grid_open", None, "export_csv", "grid_export", "map.export",
+        menu("&File", ["new", "open", "open_sample", "open_gis_sample", self.recent_menu, None, "save", "save_as", None,
+                       "import", "data.import.vector", "data.import.raster", "grid_open", None, "export_csv", "grid_export", "map.export",
                        "export_manifest", None, "exit"])
-        menu("&Edit", ["edit.undo", "redo.planned", None, "copy", "select_all"])
+        menu("&Edit", ["edit.undo", "edit.redo", None, "copy", "select_all"])
         view = menu("&View", [])
         for d in (self.dock_explorer, self.dock_properties, self.dock_console):
             view.addAction(d.toggleViewAction())
@@ -289,12 +297,13 @@ class MainWindow(GridMapMixin, QMainWindow):
             view.addSeparator() if k is None else view.addAction(a[k])
         menu("&Project", ["project_props", "history", "validate", None, "cloud.sync"])
         menu("&Data", ["import", None, "table", "preview", "stats", "qc", None, "rename", "export_csv",
-                       "remove", None, "data.import.raster", "data.import.vector", "data.import.netcdf",
-                       "data.import.lidar"])
+                       "remove", None, "data.import.vector", "data.import.raster", "vector_to_points",
+                       "vector_export", "vector_rename", "vector_remove", "image_rename", "image_remove",
+                       None, "data.import.netcdf", "data.import.lidar"])
         menu("&Grid", ["grid_data", None, "grid.idw", "grid.ok", "grid.uk", "grid.mincurv",
                        "grid.natnb", "grid.nearest", "grid.tin", "grid.rbf", None, "grid.variogram",
                        "grid.crossval", None, "grid_open", "grid_export", "grid_rename",
-                       "grid_remove", None, "grid.math"])
+                       "grid_remove", None, "grid.math", "grid_filter", "grid_blank", "grid_clip"])
         menu("&Mapping", ["map.contour", "map.filled", "map.relief", "map.post", None, "map.layout",
                           "map.export", "map_rename", "map_remove", None, "map.vector",
                           "map.density"])
@@ -364,20 +373,23 @@ class MainWindow(GridMapMixin, QMainWindow):
 
         page("Home", [("Project", ["new", "open", "save"]), ("Data", ["import", "table", "stats", "qc"]),
                       ("Grid && Map", ["grid_data", "map.relief", "map.filled"]),
+                      ("Edit", ["edit.undo", "edit.redo"]),
                       ("Inspect", ["project_props", "history", "validate"]), ("Tools", ["crs_tool"])])
-        page("Data", [("Import", ["import"]), ("Dataset", ["table", "preview", "stats", "qc", "export_csv",
+        page("Data", [("Import", ["import", "data.import.vector", "data.import.raster"]), ("Dataset", ["table", "preview", "stats", "qc", "export_csv",
                                                            "remove"]),
-                      ("Other formats", ["data.import.raster", "data.import.vector", "data.import.netcdf",
-                                         "data.import.lidar"])])
+                      ("GIS layers", ["vector_to_points", "vector_export"]),
+                      ("Other formats", ["data.import.netcdf", "data.import.lidar"])])
         page("Grid", [("Grid", ["grid_data", "grid_open", "grid_export"]),
                       ("Methods", ["grid.idw", "grid.ok", "grid.mincurv", "grid.natnb", "grid.tin",
                                    "grid.rbf"]),
-                      ("Geostatistics", ["grid.variogram", "grid.crossval"])])
+                      ("Geostatistics", ["grid.variogram", "grid.crossval"]),
+                      ("Grid math", ["grid.math", "grid_filter", "grid_blank", "grid_clip"])])
         page("Map", [("Maps", ["map.contour", "map.filled", "map.relief", "map.post"]),
+                     ("GIS", ["map.vector", "map.density"]),
                      ("Layout", ["map.layout", "map.export"])])
         page("3D && Terrain", [("3D", ["3d.surface", "3d.points"]),
-                              ("Terrain", ["terrain.slope", "terrain.hillshade", "terrain.profile",
-                                           "terrain.volume"])])
+                              ("Terrain", ["terrain.slope", "terrain.aspect", "terrain.hillshade",
+                                           "terrain.curvature", "terrain.profile", "terrain.volume"])])
         page("Hydrology", [("Hydrology", ["hydro.fill", "hydro.d8", "hydro.accum", "hydro.streams",
                                           "hydro.watershed"])])
         page("Coastal", [("Shoreline analysis", ["coastal.transects", "coastal.rates", "coastal.profiles"])])
@@ -445,10 +457,31 @@ class MainWindow(GridMapMixin, QMainWindow):
             self.actions[k].setEnabled(bool(p.maps))
         self.actions["map.post"].setEnabled(has_ds)
         self.actions["grid_data"].setEnabled(any(d.has_z for d in p.datasets.values()))
+        for k in ("grid.math", "grid_filter", "grid_clip", "terrain.slope", "terrain.aspect",
+                  "terrain.hillshade", "terrain.curvature", "terrain.profile", "terrain.volume"):
+            self.actions[k].setEnabled(bool(p.grids))
+        self.actions["grid_blank"].setEnabled(bool(p.grids) and any(
+            v.family == "polygon" for v in p.vectors.values()))
+        for k in ("vector_rename", "vector_remove", "vector_export"):
+            self.actions[k].setEnabled(bool(p.vectors))
+        self.actions["vector_to_points"].setEnabled(any(v.family == "point" for v in p.vectors.values()))
+        for k in ("image_rename", "image_remove"):
+            self.actions[k].setEnabled(bool(p.images))
+        self.actions["map.vector"].setEnabled(bool(p.vectors or p.images))
+        self.actions["map.density"].setEnabled(bool(p.datasets) or any(
+            v.family == "point" for v in p.vectors.values()))
         sel = self.selected_dataset_id()
         gsel = self.selected_item("grid")
         msel = self.selected_item("map")
-        if gsel and gsel in p.grids:
+        vsel = self.selected_item("vector")
+        isel = self.selected_item("image")
+        if vsel and vsel in p.vectors:
+            self.explorer.select_item("vectors", vsel)
+            self._show_vector_properties(vsel)
+        elif isel and isel in p.images:
+            self.explorer.select_item("images", isel)
+            self._show_image_properties(isel)
+        elif gsel and gsel in p.grids:
             self.explorer.select_item("grids", gsel)
             self._show_grid_properties(gsel)
         elif msel and msel in p.maps:
@@ -466,6 +499,7 @@ class MainWindow(GridMapMixin, QMainWindow):
         self.setWindowModified(True)
         if self.explorer.root is not None:
             self.explorer.root.setText(0, self.project.name + " *")
+        self._checkpoint()
 
     @staticmethod
     def _crs_short(crs):
@@ -527,6 +561,7 @@ class MainWindow(GridMapMixin, QMainWindow):
             sub.close()
         self.documents.clear()
         self.project = project
+        self._reset_undo()
         self._refresh_all()
 
     def new_project(self):
@@ -552,19 +587,21 @@ class MainWindow(GridMapMixin, QMainWindow):
         self.settings.setValue("last_dir", str(Path(path).parent))
         self.console.success(f"Opened {Path(path).name} (revision {proj.revision}, "
                              f"{len(proj.datasets)} datasets, {len(proj.grids)} grids, "
-                             f"{len(proj.maps)} maps).")
+                             f"{len(proj.maps)} maps, {len(proj.vectors)} vector layers, "
+                             f"{len(proj.images)} images).")
         if proj.dirty:
             self.console.warning("The project was created with an older file format and was upgraded in "
                                  "memory. The original file is unchanged until you save.")
         self._refresh_all()
         return True
 
-    def open_sample_project(self):
-        if not SAMPLE_PROJECT.exists():
-            self._error("Sample project", FileNotFoundError(str(SAMPLE_PROJECT)))
+    def open_sample_project(self, path=None):
+        path = Path(path or SAMPLE_PROJECT)
+        if not path.exists():
+            self._error("Sample project", FileNotFoundError(str(path)))
             return
         # open a copy so the shipped sample is never overwritten
-        if self.open_project(str(SAMPLE_PROJECT)):
+        if self.open_project(str(path)):
             self.project.path = None
             self.project.revision = 0
             self.project.uuid = uuid.uuid4().hex
@@ -776,7 +813,7 @@ class MainWindow(GridMapMixin, QMainWindow):
         return path
 
     def _explorer_action(self, name, did):
-        if self._phase2_context(name, did):
+        if self._gis_context(name, did) or self._phase2_context(name, did):
             return
         {"open": lambda: self.open_dataset(did),
          "stats": lambda: (self.open_dataset(did), self._dataset_tab("Statistics")),
@@ -793,6 +830,10 @@ class MainWindow(GridMapMixin, QMainWindow):
             self._show_grid_properties(ident)
         elif kind == "map":
             self._show_map_item_properties(ident, "")
+        elif kind == "vector":
+            self._show_vector_properties(ident)
+        elif kind == "image":
+            self._show_image_properties(ident)
         elif kind == "project" or kind == "":
             self.show_project_properties()
         elif kind == "category":
@@ -805,6 +846,16 @@ class MainWindow(GridMapMixin, QMainWindow):
                 self.explorer.select_item("grids", w.grid_id)
                 self._show_grid_properties(w.grid_id)
                 self.status.set_scale("—")
+            return
+        if isinstance(w, (VectorDocument, ImageDocument)):
+            vid = w.item_id
+            if vid in self.project.vectors:
+                self.explorer.select_item("vectors", vid)
+                self._show_vector_properties(vid)
+            elif vid in self.project.images:
+                self.explorer.select_item("images", vid)
+                self._show_image_properties(vid)
+            self.status.set_scale("—")
             return
         if isinstance(w, MapView):
             if w.map_id in self.project.maps:
@@ -857,6 +908,8 @@ class MainWindow(GridMapMixin, QMainWindow):
             Prop("Contents", "Point datasets", len(p.datasets)),
             Prop("Contents", "Grids", len(p.grids)),
             Prop("Contents", "Maps", len(p.maps)),
+            Prop("Contents", "Vector layers", len(p.vectors)),
+            Prop("Contents", "Raster images", len(p.images)),
             Prop("Contents", "History entries", len(p.history)),
             Prop("Contents", "Outputs", len(p.outputs)),
         ]
@@ -901,7 +954,7 @@ class MainWindow(GridMapMixin, QMainWindow):
 
     def _property_edited(self, key, value):
         p = self.project
-        if self._phase2_property_edited(key, value):
+        if self._phase2_property_edited(key, value) or self._gis_property_edited(key, value):
             return
         try:
             if key.startswith("project."):
@@ -966,12 +1019,14 @@ class MainWindow(GridMapMixin, QMainWindow):
                 self.console.warning(f"'{ds.name}': source file no longer found at {ds.source.path} "
                                      "(the imported copy in the project is unaffected)")
         for m in p.maps.values():
-            missing = [lyr.name for lyr in m.layers
-                       if p.item(getattr(lyr, "grid_id", "") or getattr(lyr, "dataset_id", "")) is None]
+            missing = [lyr.name for lyr in m.layers if p.item(layer_source(lyr)) is None]
             if missing:
                 problems += 1
                 self.console.warning(f"Map '{m.name}': missing data source for layer(s) "
                                      + ", ".join(missing))
+        for v in p.vectors.values():
+            if not v.crs:
+                self.console.warning(f"Vector layer '{v.name}': no coordinate reference system assigned")
         for g in p.grids.values():
             if not g.crs:
                 self.console.warning(f"Grid '{g.name}': no coordinate reference system assigned")

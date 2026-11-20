@@ -18,6 +18,7 @@ from geohydro import __version__  # noqa: E402
 datas = [
     (str(ROOT / "samples" / "data"), "samples/data"),
     (str(ROOT / "samples" / "sample_project.ghproj"), "samples"),
+    (str(ROOT / "samples" / "gis_demo_project.ghproj"), "samples"),
     (str(ROOT / "samples" / "README.md"), "samples"),
     (str(ROOT / "docs"), "docs"),
 ]

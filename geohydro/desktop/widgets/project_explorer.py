@@ -17,18 +17,18 @@ ROLE_ID = Qt.ItemDataRole.UserRole + 1
 CATEGORIES = [
     ("points", "Point Datasets", "points", None),
     ("grids", "Grids", "grid", None),
-    ("rasters", "Raster Layers", "raster", 3),
-    ("vectors", "Vector Layers", "vector", 3),
+    ("vectors", "Vector Layers", "vector", None),
+    ("images", "Raster Images", "raster", None),
     ("maps", "Maps", "map", None),
-    ("surfaces", "3D Surfaces", "surface3d", 3),
-    ("results", "Analysis Results", "results", 3),
+    ("surfaces", "3D Surfaces", "surface3d", 4),
+    ("results", "Analysis Results", "results", 4),
     ("reports", "Reports", "report", 6),
 ]
 
 
 class ProjectExplorer(QTreeWidget):
     datasetActivated = Signal(str)  # dataset id (double click)
-    itemActivated = Signal(str, str)  # kind ("dataset"|"grid"|"map"), id (double click)
+    itemActivated = Signal(str, str)  # kind ("dataset"|"grid"|"map"|"vector"|"image"), id
     selectionChangedTo = Signal(str, str)  # kind ("project"|"dataset"|"grid"|"map"|"category"|""), id
     contextAction = Signal(str, str)  # action name, item id
 
@@ -108,6 +108,25 @@ class ProjectExplorer(QTreeWidget):
             child.setToolTip(0, f"{len(m.layers)} layer(s)")
             maps.addChild(child)
         maps.setText(0, f"Maps  ({len(project.maps)})")
+        vecs = self.category_items["vectors"]
+        for v in project.vectors.values():
+            child = QTreeWidgetItem([f"{v.name}  ({v.n_features:,} {v.family})"])
+            child.setIcon(0, icons.icon("vector"))
+            child.setData(0, ROLE_KIND, "vector")
+            child.setData(0, ROLE_ID, v.id)
+            child.setToolTip(0, f"{v.source.path if v.source else 'created in project'}\n"
+                                f"CRS: {v.crs or 'undefined'}")
+            vecs.addChild(child)
+        vecs.setText(0, f"Vector Layers  ({len(project.vectors)})")
+        imgs = self.category_items["images"]
+        for im in project.images.values():
+            child = QTreeWidgetItem([f"{im.name}  ({im.shape[1]}×{im.shape[0]})"])
+            child.setIcon(0, icons.icon("raster"))
+            child.setData(0, ROLE_KIND, "image")
+            child.setData(0, ROLE_ID, im.id)
+            child.setToolTip(0, f"Base map image\nCRS: {im.crs or 'undefined'}")
+            imgs.addChild(child)
+        imgs.setText(0, f"Raster Images  ({len(project.images)})")
         self.expandAll()
         self.blockSignals(False)
 
@@ -143,7 +162,7 @@ class ProjectExplorer(QTreeWidget):
         kind = it.data(0, ROLE_KIND)
         if kind == "dataset":
             self.datasetActivated.emit(it.data(0, ROLE_ID))
-        if kind in ("dataset", "grid", "map"):
+        if kind in ("dataset", "grid", "map", "vector", "image"):
             self.itemActivated.emit(kind, it.data(0, ROLE_ID))
 
     MENUS = {
@@ -163,10 +182,28 @@ class ProjectExplorer(QTreeWidget):
             ("grid.contour", "New Contour Map", "contour"),
             ("grid.filled", "New Filled Contour Map", "filled"),
             ("grid.relief", "New Colour Relief Map", "relief"),
+            ("grid.slope", "Slope…", "slope"),
+            ("grid.hillshade", "Hillshade…", "hillshade"),
             ("grid.rename", "Rename…", None),
             ("grid.export", "Export Grid File…", "export"),
             (None, None, None),
             ("grid.remove", "Remove from Project…", "delete"),
+        ),
+        "vector": (
+            ("vector.open", "Open", "vector"),
+            ("vector.map", "Add to Map", "map"),
+            ("vector.points", "Convert to Point Dataset…", "points"),
+            ("vector.rename", "Rename…", None),
+            ("vector.export", "Export…", "export"),
+            (None, None, None),
+            ("vector.remove", "Remove from Project…", "delete"),
+        ),
+        "image": (
+            ("image.open", "Open", "raster"),
+            ("image.map", "Add to Map", "map"),
+            ("image.rename", "Rename…", None),
+            (None, None, None),
+            ("image.remove", "Remove from Project…", "delete"),
         ),
         "map": (
             ("map.open", "Open", "map"),

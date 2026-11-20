@@ -1,8 +1,8 @@
 """3D surface and point-cloud visualisation (PyVista/VTK on desktop, Three.js on web).
 
-STATUS: planned for Phase 3. No calculations are implemented in this
+STATUS: planned for Phase 4 (moved from Phase 3). No calculations are implemented in this
 package yet; nothing here may be presented to users as a working feature.
 """
 
 STATUS = "planned"
-PHASE = 3
+PHASE = 4

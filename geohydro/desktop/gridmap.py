@@ -18,12 +18,14 @@ from geohydro.engine.gridding.gridder import GriddingRequest, grid_data
 from geohydro.engine.gridding.io import GRID_FORMATS, read_grid, write_grid
 from geohydro.engine.mapping.levels import LevelSpec
 from geohydro.engine.mapping.model import (LAYER_TITLES, ColourReliefLayer, ContourLayer,
-                                           FilledContourLayer, MapDocument, PostLayer)
+                                           FilledContourLayer, ImageLayer, MapDocument, PostLayer,
+                                           VectorLayer)
 from geohydro.engine.mapping.render import EXPORT_FORMATS, export_map
 
 from . import icons
 from .dialogs.grid_dialog import GridDataDialog
 from .dialogs.variogram_dialog import VariogramDialog
+from .documents.gis_documents import ImageDocument, VectorDocument
 from .documents.grid_document import GridDocument
 from .documents.map_document import MapView, apply_edit, layer_props, map_props
 from .widgets.properties_panel import Prop
@@ -35,7 +37,8 @@ METHOD_FOR_ACTION = {"grid.idw": "idw", "grid.ok": "ordinary_kriging",
 MAP_FOR_ACTION = {"map.contour": "contour", "map.filled": "filled_contour",
                   "map.relief": "colour_relief", "map.post": "post"}
 GRID_FILTER = ";;".join(f"{label}" for label, _ in GRID_FORMATS.values())
-MAP_FILTER = "PNG image (*.png);;JPEG image (*.jpg);;SVG vector graphic (*.svg);;PDF document (*.pdf)"
+MAP_FILTER = ("PNG image (*.png);;TIFF image (*.tif);;JPEG image (*.jpg);;"
+              "SVG vector graphic (*.svg);;PDF document (*.pdf)")
 
 
 class GridMapMixin:
@@ -73,6 +76,10 @@ class GridMapMixin:
             return w.grid_id
         if kind == "map" and isinstance(w, MapView):
             return w.map_id
+        if kind in ("vector", "image") and isinstance(w, (VectorDocument, ImageDocument)):
+            store = self.project.vectors if kind == "vector" else self.project.images
+            if w.item_id in store:
+                return w.item_id
         it = self.explorer.currentItem()
         if it is not None and it.data(0, Qt.ItemDataRole.UserRole) == kind:
             return it.data(0, Qt.ItemDataRole.UserRole + 1)
@@ -83,6 +90,10 @@ class GridMapMixin:
             self.open_grid(ident)
         elif kind == "map":
             self.open_map(ident)
+        elif kind == "vector":
+            self.open_vector(ident)
+        elif kind == "image":
+            self.open_image(ident)
 
     def _phase2_context(self, name, ident) -> bool:
         handlers = {
@@ -224,7 +235,7 @@ class GridMapMixin:
         if not path:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open grid file", self._last_dir(),
-                "Grid files (*.grd *.asc);;All files (*)")
+                "Grid files (*.grd *.asc *.tif *.tiff);;All files (*)")
             if not path:
                 return None
         try:
@@ -232,10 +243,11 @@ class GridMapMixin:
         except GeoHydroError as exc:
             self._error("Cannot read grid", exc)
             return None
-        g.crs = self.project.default_crs
-        g.metadata["warnings"] = ["Imported grid: the CRS was set to the project default "
-                                  "(grid files carry no CRS)."] if g.crs else \
-            ["Imported grid: no CRS assigned (grid files carry no CRS)."]
+        if not g.crs:  # Surfer / ESRI ASCII grids carry no CRS; GeoTIFF does
+            g.crs = self.project.default_crs
+            g.metadata.setdefault("warnings", []).append(
+                "Imported grid: the CRS was set to the project default (grid files carry no "
+                "CRS)." if g.crs else "Imported grid: no CRS assigned (grid files carry no CRS).")
         self.project.add_grid(g)
         self.console.success(f"Grid '{g.name}' read from {Path(path).name}: "
                              f"{g.geometry.nx}×{g.geometry.ny} nodes, {g.n_blank:,} blank.")
@@ -379,6 +391,8 @@ class GridMapMixin:
             view.cursorMoved.connect(self.status.set_cursor)
             view.exportRequested.connect(lambda mid: self.export_map(mid))
             view.addLayerRequested.connect(self.add_map_layer)
+            view.logoRequested.connect(lambda mid: self.set_map_logo(mid))
+            view.textRequested.connect(lambda mid: self.add_map_text(mid))
             sub = self.mdi.addSubWindow(view)
             sub.setWindowIcon(icons.icon("map"))
             sub.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -397,7 +411,8 @@ class GridMapMixin:
 
     def add_map_layer(self, map_id: str, kind: str, source_id: str | None = None):
         doc = self.project.maps[map_id]
-        pool = self.project.datasets if kind == "post" else self.project.grids
+        pool = {"post": self.project.datasets, "vector": self.project.vectors,
+                "image": self.project.images}.get(kind, self.project.grids)
         if not pool:
             self._error("Add layer", GeoHydroError("No suitable data source in the project."))
             return None
@@ -408,14 +423,28 @@ class GridMapMixin:
                 return None
             source_id = next(o.id for o in pool.values() if o.name == name)
         cls = {"contour": ContourLayer, "filled_contour": FilledContourLayer,
-               "colour_relief": ColourReliefLayer, "post": PostLayer}[kind]
-        key = "dataset_id" if kind == "post" else "grid_id"
-        lyr = cls(name=f"{pool[source_id].name} – {LAYER_TITLES[kind]}", **{key: source_id})
+               "colour_relief": ColourReliefLayer, "post": PostLayer, "vector": VectorLayer,
+               "image": ImageLayer}[kind]
+        key = {"post": "dataset_id", "vector": "vector_id", "image": "image_id"}.get(kind,
+                                                                                  "grid_id")
+        name = pool[source_id].name if kind in ("vector", "image") else \
+            f"{pool[source_id].name} – {LAYER_TITLES[kind]}"
+        lyr = cls(name=name, **{key: source_id})
+        if kind == "vector":
+            fam = pool[source_id].family
+            lyr.fill = fam == "polygon"
+        if kind == "image":  # base maps go to the bottom
+            doc.layers.insert(0, lyr)
         if kind == "contour":
             lyr.levels = LevelSpec("auto", 10)
-        doc.layers.append(lyr)
+        if kind != "image":
+            doc.layers.append(lyr)
         self._map_changed(map_id)
+        self._refresh_all()
         view = self.documents.get(map_id)
+        if view is None and kind in ("vector", "image"):
+            self.open_map(map_id)
+            view = self.documents.get(map_id)
         if view:
             view.widget().refresh()
             view.widget().select_layer(lyr.id)

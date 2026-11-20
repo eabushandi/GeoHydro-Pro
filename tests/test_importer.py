@@ -74,12 +74,14 @@ def test_invalid_crs_rejected():
 
 def test_capability_registry_honesty():
     implemented = {k for k, c in CAPABILITIES.items() if c.implemented}
-    assert all(CAPABILITIES[k].phase <= 2 for k in implemented)
+    assert all(CAPABILITIES[k].phase <= 3 for k in implemented)
     assert is_implemented("grid.ok") and not is_implemented("hydro.d8")
-    assert "planned" in CAPABILITIES["terrain.slope"].label
+    assert is_implemented("terrain.slope") and "planned" not in CAPABILITIES["terrain.slope"].label
+    assert "planned" in CAPABILITIES["hydro.d8"].label
     assert "planned" not in CAPABILITIES["grid.idw"].label
-    from geohydro.engine import gridding, hydrology, interpolation, mapping, terrain
-    for mod in (gridding, interpolation, mapping):
+    from geohydro.engine import (gridding, gridmath, hydrology, interpolation, mapping, raster,
+                                 terrain, vector)
+    for mod in (gridding, interpolation, mapping, gridmath, raster, vector, terrain):
         assert mod.STATUS == "implemented"
-    for mod in (hydrology, terrain):
-        assert mod.STATUS == "planned"
+    assert hydrology.STATUS == "planned"
+    assert callable(terrain.slope) and callable(terrain.volume)

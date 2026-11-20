@@ -60,7 +60,9 @@ def test_explorer_categories(win):
     assert labels[0].startswith("Point Datasets")
     assert any(t.startswith("Grids") and "planned" not in t for t in labels)
     assert any(t.startswith("Maps") and "planned" not in t for t in labels)
-    assert any("Raster Layers" in t and "planned" in t for t in labels)
+    assert any(t.startswith("Raster Images") and "planned" not in t for t in labels)
+    assert any(t.startswith("Vector Layers") and "planned" not in t for t in labels)
+    assert any("3D Surfaces" in t and "planned" in t for t in labels)
     assert any("Reports" in t for t in labels)
 
 
