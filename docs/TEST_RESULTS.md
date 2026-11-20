@@ -238,6 +238,11 @@ copy, and silent uninstall all passed.
 As before, these are Windows Server images, not an interactive check on desktop Windows
 10/11.
 
+**Release candidate, commit aa2284f** (exact Windows build constraints added): tests run
+44766313654, 9/9 jobs with 317 passed and 1 skipped each; windows-package run 44766313432,
+frozen self-test, installed self-test, silent install and uninstall passed, application
+folder 474 MB.
+
 ## Phase 2 (v0.2.0) — local run
 
 Run: 2026-11-20, Linux (Ubuntu 24.04, x86-64), Python 3.13.18, Qt offscreen platform.
