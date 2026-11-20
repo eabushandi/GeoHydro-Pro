@@ -20,7 +20,7 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | 13 | Project save/load, versioned format | ✅ | `test_project_storage.py`, `test_save_open_roundtrip_through_ui` |
 | 14 | Sample scientific datasets | ✅ | `samples/` (synthetic, documented generator) |
 | 15 | Run the application | 🟡 | Run offscreen on Linux and on Windows Server 2022/2025 (CI). Not yet run interactively on desktop Windows 10/11. |
-| 16–17 | Automated tests, fix errors | ✅ | 88 passed — `docs/TEST_RESULTS.md` |
+| 16–17 | Automated tests, fix errors | ✅ | 88 passed at Phase 1; 179 at Phase 2 — `docs/TEST_RESULTS.md` |
 
 ### Data import workflow (section 6)
 
@@ -47,7 +47,7 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | Organise datasets (rename, remove, export) | ✅ |
 | Save processing settings (import settings per dataset) | ✅ |
 | Analysis history | ✅ (processing history table + dialog) |
-| Manage output files | 🟡 outputs list recorded for CSV exports; no output manager UI yet |
+| Manage output files | 🟡 outputs list recorded for CSV, grid and map exports; no output manager UI yet |
 | Export complete projects | 🟡 `.ghproj` is self-contained; JSON manifest export ✅; zip bundle with source files ⬜ |
 | Versioning, conflict detection, never overwrite without confirmation | ✅ |
 | Windows ↔ Web portability | 🟡 format is platform-neutral; web side not built |
@@ -62,14 +62,47 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | i18n architecture (RTL switch, translator hook) | 🟡 hooks only; no translations |
 | Web application foundation (roadmap Phase 1 item) | ⬜ not started — out of this thread's scope |
 | CI workflow (Windows + Linux) | ✅ 9/9 jobs pass (windows-2022, windows-2025, ubuntu-24.04 × Py 3.11–3.13) |
-| Undo / redo | ⬜ Phase 2 |
+| Undo / redo | ⬜ moved to Phase 3 (not done in Phase 2) |
+
+## Phase 2 — Core Mapping (section 28)
+
+| Item | Status | Evidence / note |
+|---|---|---|
+| Gridding engine (grid model, limits, spacing, NoData, CRS) | ✅ | `engine/gridding/grid.py`; `test_gridding.py` |
+| Inverse Distance Weighting (power, smoothing, search, anisotropy) | ✅ | `test_interpolation.py` |
+| Ordinary Kriging (genuine; variance grid) | ✅ | matches PyKrige to ~1e-13 (`test_kriging_matches_pykrige`) |
+| Universal Kriging (linear / quadratic drift) | ✅ | matches PyKrige to ~1e-10 |
+| Minimum Curvature (tension, free edges, plane detrending) | ✅ | reproduces planes; tension reduces overshoot; limited to 1M nodes |
+| Natural Neighbour (exact Sibson) | ✅ | exactness, linear precision, weight properties |
+| Nearest Neighbour | ✅ | |
+| Linear Triangulation | ✅ | |
+| Radial Basis Functions (8 kernels, local or global) | ✅ | compared with SciPy directly |
+| Search radius, neighbours, anisotropy, coincident points, blanking | ✅ | |
+| Variogram: experimental (directional), 6 models, WLS fitting with warnings | ✅ | `test_interpolation.py` |
+| Grid preview, grid statistics, residual analysis | ✅ | grid document; `test_gui_phase2.py` |
+| Cross-validation: RMSE, MAE, ME, R², kriging standardised errors | ✅ | `test_gridding.py`, dialog test |
+| Scientific documentation for every method | ✅ | `docs/GRIDDING.md` (equations, assumptions, limitations, validation table) |
+| Grid files: Surfer 6 text / 6 binary / 7 binary, ESRI ASCII (read/write), XYZ (write) | 🟡 | round-trip tested; **not yet checked against files written by Surfer** |
+| Contour maps (intervals, labels, major lines) | ✅ | `test_mapping.py` |
+| Filled contour maps | ✅ | |
+| Colour relief maps | ✅ | |
+| Post maps (symbols, colour by Z, labels) | ✅ | |
+| Palettes (uniform, conventional, diverging; reversible) | ✅ | |
+| Legend (colour bar), scale bar, north arrow (true north), coordinate grid, titles | ✅ | convergence sign tested; geographic scale bar labelled with its latitude |
+| Transparency, layer order, multi-layer maps | ✅ | |
+| Map layout | 🟡 | page view with page size/orientation/margins, property editing, draggable scale bar and north arrow. Free-form layout (several frames, insets, logos, text boxes) planned |
+| Annotations | 🟡 | stored and drawn; no interactive annotation tool yet |
+| Export PNG, JPEG, SVG, PDF | ✅ | exact page size; never overwrites silently |
+| Project format v2 (grids, maps) with v1 migration | ✅ | `test_project_storage.py` |
+| Grid math, vector maps, base maps, point-density maps, raster-layer maps | ⬜ | moved to Phase 3 |
+| Vector import (shapefile, GeoJSON …) | ⬜ | moved to Phase 3 |
+| Undo / redo | ⬜ | moved to Phase 3 |
+| Interactive check on desktop Windows 10/11 | ⬜ | CI runs on Windows Server images only |
 
 ## Later phases (all ⬜ planned, visible but disabled in the UI)
 
-* Phase 2: IDW, Ordinary/Universal Kriging, Minimum Curvature, Natural Neighbour, Nearest
-  Neighbour, Linear Triangulation, RBF, variograms, cross-validation; contour, filled
-  contour, colour relief, post maps; layout editor; map export; vector import.
-* Phase 3: 3D surfaces and point clouds, raster/DEM import, LAS/LAZ, slope, aspect,
+* Phase 3: grid math, vector/base/point-density/raster maps, vector import, undo/redo,
+  3D surfaces and point clouds, raster/DEM import, LAS/LAZ, slope, aspect,
   hillshade, curvature, profiles, cut/fill volumes.
 * Phase 4: DEM conditioning, D8, flow accumulation, streams, watersheds.
 * Phase 5: shoreline baselines/transects, EPR, LRR, NSM, SCE, beach profiles.

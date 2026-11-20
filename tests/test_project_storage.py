@@ -205,3 +205,88 @@ def test_save_copy_to_new_location_keeps_uuid(project, tmp_path):
     project.name = "changed"
     save_project(project, tmp_path / "b.ghproj")  # same project, same revision: allowed
     assert load_project(tmp_path / "b.ghproj").name == "changed"
+
+
+# ---------------------------------------------------------------- format v2: grids and maps
+def _add_grid_and_map(project):
+    from geohydro.engine.gridding.grid import Grid, GridGeometry
+    from geohydro.engine.mapping.levels import LevelSpec
+    from geohydro.engine.mapping.model import ContourLayer, MapDocument, PostLayer
+    g = GridGeometry(440000.0, 441000.0, 2885000.0, 2885500.0, 21, 11)
+    z = np.random.default_rng(1).normal(10, 3, g.shape)
+    z[0, :4] = np.nan
+    z[5, 5] = 1e-300  # tiny values survive the codec exactly
+    grid = project.add_grid(Grid(g, z, name="G", crs="EPSG:32639", z_label="Head",
+                                 metadata={"method": "idw", "parameters": {"power": 2.0}}))
+    ds = next(iter(project.datasets.values()))
+    doc = project.add_map(MapDocument(name="M", title="Map", crs="EPSG:32639", layers=[
+        ContourLayer(grid_id=grid.id, levels=LevelSpec("interval", interval=0.5)),
+        PostLayer(dataset_id=ds.id)]))
+    doc.north_arrow.xy = (0.9, 0.8)
+    return grid, doc
+
+
+def test_grid_and_map_roundtrip(project, tmp_path):
+    grid, doc = _add_grid_and_map(project)
+    path = save_project(project, tmp_path / "p.ghproj")
+    q = load_project(path)
+    g2 = q.grids[grid.id]
+    np.testing.assert_array_equal(g2.z, grid.z)  # NaN positions and values bit-exact
+    assert g2.geometry == grid.geometry and g2.metadata == grid.metadata
+    assert (g2.name, g2.crs, g2.z_label) == ("G", "EPSG:32639", "Head")
+    assert q.maps[doc.id].to_dict() == doc.to_dict()
+    hdr = read_header(path)
+    assert hdr["format_version"] == FORMAT_VERSION == 2
+    m = project_manifest(q)
+    assert [x["name"] for x in m["grids"]] == ["G"] and [x["name"] for x in m["maps"]] == ["M"]
+    assert any("Grid 'G'" in r for r in storage.verify_project_file(path))
+
+
+def test_grid_checksum_and_shape_mismatch_detected(project, tmp_path):
+    _add_grid_and_map(project)
+    path = save_project(project, tmp_path / "p.ghproj")
+    con = sqlite3.connect(path)
+    blob = con.execute("SELECT data FROM grids").fetchone()[0]
+    con.execute("UPDATE grids SET data=?", (blob[:-1] + bytes([blob[-1] ^ 1]),))
+    con.commit()
+    con.close()
+    with pytest.raises(ProjectIntegrityError):
+        load_project(path)
+    # Same data with a geometry that does not match its shape
+    path2 = save_project(project, tmp_path / "p2.ghproj")
+    con = sqlite3.connect(path2)
+    con.execute("UPDATE grids SET geometry=replace(geometry, '\"nx\": 21', '\"nx\": 22')")
+    con.commit()
+    con.close()
+    with pytest.raises(ProjectIntegrityError):
+        load_project(path2)
+
+
+def test_remove_grid_used_by_map_is_reported(project):
+    grid, doc = _add_grid_and_map(project)
+    assert project.maps_using(grid.id) == [doc]
+    project.remove_grid(grid.id)
+    assert grid.id in doc.referenced_ids() and grid.id not in project.grids
+    assert project.history[-1].action == "grid.remove"
+
+
+def test_v1_project_migrates_to_v2(tmp_path):
+    from pathlib import Path
+    src = Path(__file__).parent / "fixtures" / "project_format_v1.ghproj"
+    assert read_header(src)["format_version"] == 1
+    p = load_project(src)
+    assert p.dirty and p.history[-1].action == "project.migrate"
+    assert p.history[-1].details == {"from_version": 1, "to_version": 2}
+    assert p.grids == {} and p.maps == {}
+    assert {d.name for d in p.datasets.values()} == {"Terrain survey", "Monitoring wells"}
+    # Saving writes the current format; the original v1 file is never modified in place
+    out = save_project(p, tmp_path / "migrated.ghproj")
+    assert read_header(out)["format_version"] == 2
+    assert read_header(src)["format_version"] == 1
+
+
+def test_sample_project_has_grids_and_maps(samples):
+    p = load_project(samples.parent / "sample_project.ghproj")
+    assert len(p.grids) == 2 and len(p.maps) == 2
+    for m in p.maps.values():
+        assert m.referenced_ids() <= set(p.datasets) | set(p.grids)

@@ -26,3 +26,25 @@ def write(tmp_path):
         return p
 
     return _w
+
+
+# ---- shared GUI fixtures (pytest-qt, offscreen) ------------------------------
+@pytest.fixture(scope="session")
+def app():
+    from geohydro.desktop.app import create_app
+    return create_app(["test"])
+
+
+@pytest.fixture
+def win(app, qtbot, tmp_path):
+    from PySide6.QtCore import QSettings
+
+    from geohydro.desktop.main_window import MainWindow
+    w = MainWindow(QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat))
+    qtbot.addWidget(w)
+    w.confirm = lambda *a, **k: True
+    w.choose = lambda *a, **k: "Discard"
+    w.show()
+    yield w
+    w.project.dirty = False
+    w.close()

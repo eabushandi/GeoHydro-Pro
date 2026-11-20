@@ -17,8 +17,8 @@ class GeoStatusBar(QStatusBar):
         self.crs = QLabel("CRS: —")
         self.scale = QLabel("Scale: —")
         self.grid = QLabel("Grid: none")
-        self.grid.setToolTip("Grid resolution (gridding is planned for Phase 2)")
-        self.elev.setToolTip("Value of the nearest observation under the cursor")
+        self.grid.setToolTip("Node spacing of the active grid")
+        self.elev.setToolTip("Grid value (bilinear) or nearest observation under the cursor")
         self.scale.setToolTip("Approximate on-screen scale of the active preview")
         for w in (self.coords, self.elev, self.crs, self.scale, self.grid):
             self.addPermanentWidget(w)
@@ -48,3 +48,6 @@ class GeoStatusBar(QStatusBar):
         self.progress.setRange(0, 0 if on else 1)
         if text:
             self.status.setText(text)
+
+    def set_grid(self, text: str | None):
+        self.grid.setText(f"Grid: {text or 'none'}")

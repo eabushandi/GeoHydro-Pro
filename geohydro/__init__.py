@@ -6,8 +6,8 @@ reused unchanged by the planned web backend. The desktop user interface lives
 in ``geohydro.desktop``.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 APP_NAME = "GeoHydro Pro"
 APP_TAGLINE = "From Spatial Data to Engineering Intelligence."
 ORGANIZATION = "GeoHydro Pro"
-DEVELOPMENT_PHASE = "Phase 1 - Foundation"
+DEVELOPMENT_PHASE = "Phase 2 - Core Mapping"

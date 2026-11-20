@@ -29,8 +29,8 @@ class Capability:
         return f"{self.title} (planned, Phase {self.phase})"
 
 
-def _impl(key, title, desc=""):
-    return Capability(key, title, 1, "implemented", desc)
+def _impl(key, title, desc="", phase=1):
+    return Capability(key, title, phase, "implemented", desc)
 
 
 def _plan(key, title, phase, desc=""):
@@ -54,25 +54,32 @@ _ALL = [
     _impl("tools.crs", "CRS Inspector & Coordinate Transform"),
     # ---- Later phases: planned ------------------------------------------
     _plan("data.import.raster", "Import Raster (GeoTIFF, ASC, DEM, IMG)", 3),
-    _plan("data.import.vector", "Import Vector (SHP, GPKG, GeoJSON, DXF)", 2),
+    _plan("data.import.vector", "Import Vector (SHP, GPKG, GeoJSON, DXF)", 3),
     _plan("data.import.netcdf", "Import NetCDF", 6),
     _plan("data.import.lidar", "Import Point Cloud (LAS, LAZ)", 3),
-    _plan("grid.idw", "Inverse Distance Weighting", 2),
-    _plan("grid.ok", "Ordinary Kriging", 2),
-    _plan("grid.uk", "Universal Kriging", 2),
-    _plan("grid.mincurv", "Minimum Curvature", 2),
-    _plan("grid.natnb", "Natural Neighbour", 2),
-    _plan("grid.nearest", "Nearest Neighbour", 2),
-    _plan("grid.tin", "Linear Triangulation", 2),
-    _plan("grid.rbf", "Radial Basis Functions", 2),
-    _plan("grid.variogram", "Variogram Analysis", 2),
-    _plan("grid.crossval", "Cross-Validation", 2),
-    _plan("map.contour", "Contour Map", 2),
-    _plan("map.filled", "Filled Contour Map", 2),
-    _plan("map.relief", "Colour Relief Map", 2),
-    _plan("map.post", "Post Map", 2),
-    _plan("map.layout", "Map Layout Editor", 2),
-    _plan("map.export", "Export Map (PNG, JPEG, SVG, PDF)", 2),
+    # ---- Phase 2: implemented -------------------------------------------
+    _impl("grid.idw", "Inverse Distance Weighting", phase=2),
+    _impl("grid.ok", "Ordinary Kriging", phase=2),
+    _impl("grid.uk", "Universal Kriging", phase=2),
+    _impl("grid.mincurv", "Minimum Curvature", phase=2),
+    _impl("grid.natnb", "Natural Neighbour", phase=2),
+    _impl("grid.nearest", "Nearest Neighbour", phase=2),
+    _impl("grid.tin", "Linear Triangulation", phase=2),
+    _impl("grid.rbf", "Radial Basis Functions", phase=2),
+    _impl("grid.variogram", "Variogram Analysis", phase=2),
+    _impl("grid.crossval", "Cross-Validation", phase=2),
+    _impl("grid.files", "Open / Export Grid Files (Surfer GRD, ESRI ASC, XYZ)", phase=2),
+    _impl("grid.statistics", "Grid Statistics & Residuals", phase=2),
+    _impl("map.contour", "Contour Map", phase=2),
+    _impl("map.filled", "Filled Contour Map", phase=2),
+    _impl("map.relief", "Colour Relief Map", phase=2),
+    _impl("map.post", "Post Map", phase=2),
+    _impl("map.layout", "Map Layout Editor", phase=2),
+    _impl("map.export", "Export Map (PNG, JPEG, SVG, PDF)", phase=2),
+    # ---- Later phases: planned ------------------------------------------
+    _plan("grid.math", "Grid Mathematics", 3),
+    _plan("map.vector", "Vector / Base Map Layers", 3),
+    _plan("map.density", "Point Density Map", 3),
     _plan("3d.surface", "3D Surface", 3),
     _plan("3d.points", "3D Point Cloud View", 3),
     _plan("terrain.slope", "Slope", 3),
@@ -97,7 +104,7 @@ _ALL = [
     _plan("reports.xlsx", "Excel Report", 6),
     _plan("cloud.sync", "Cloud Synchronisation", 7),
     _plan("account.license", "Licence & Subscription", 7),
-    _plan("edit.undo", "Undo / Redo", 2),
+    _plan("edit.undo", "Undo / Redo", 3),
     _plan("settings.language.ar", "Arabic Interface", 8),
 ]
 

@@ -84,7 +84,7 @@ def main(out_dir: str | None = None):
     doc.tabs.setCurrentIndex(3)
     shot(win, "09_quality_report.png")
     win.ribbon.setCurrentIndex(3)
-    shot(win, "10_ribbon_planned_map.png")
+    shot(win, "10_ribbon_mapping.png")
     win.ribbon.setCurrentIndex(0)
 
     proj_path = Path(tmp) / "demo.ghproj"
@@ -94,8 +94,63 @@ def main(out_dir: str | None = None):
     win.validate_project()
     shot(win, "11_saved_and_validated.png")
     win.project.dirty = False
+    phase2(app, win, out, shot, tmp)
+    win.project.dirty = False
     win.close()
     QApplication.processEvents()
+
+
+def phase2(app, win, out, shot, tmp):
+    """Gridding, variogram, grid document and map layout, using the sample project."""
+    import shutil
+
+    from geohydro.desktop.dialogs.grid_dialog import GridDataDialog
+    from geohydro.desktop.dialogs.variogram_dialog import VariogramDialog
+
+    src = Path(tmp) / "sample_project.ghproj"
+    shutil.copy(ROOT / "samples" / "sample_project.ghproj", src)
+    win.open_project(str(src))
+    pump(app, 20)
+    wells = win.project.dataset_by_name("Monitoring wells")
+    terrain = win.project.dataset_by_name("Terrain survey")
+
+    dlg = GridDataDialog(win.project, win, terrain.id, "idw", runner=None)
+    dlg.resize(1120, 860)
+    dlg.show()
+    pump(app, 10)
+    dlg.cv_max.setValue(300)
+    dlg.cross_validate()
+    pump(app, 10)
+    shot(dlg, "12_grid_data_dialog.png")
+    dlg.close()
+
+    vg = VariogramDialog(wells, win)
+    vg.resize(1100, 700)
+    vg.model.setCurrentIndex(vg.model.findData("spherical"))
+    vg.auto_fit()
+    vg.show()
+    pump(app, 10)
+    shot(vg, "13_variogram.png")
+    vg.close()
+
+    head = next(g for g in win.project.grids.values() if "kriging" in g.name)
+    doc = win.open_grid(head.id)
+    win.explorer.select_item("grids", head.id)
+    win._show_grid_properties(head.id)
+    pump(app, 20)
+    shot(win, "14_grid_document.png")
+    doc.tabs.setCurrentIndex(2)
+    shot(win, "15_grid_provenance.png")
+
+    for name, file in (("Terrain relief map", "16_map_layout_relief.png"),
+                       ("Groundwater head map", "17_map_layout_head.png")):
+        m = next(m for m in win.project.maps.values() if m.name == name)
+        view = win.open_map(m.id)
+        pump(app, 10)
+        if file.startswith("17"):
+            view.select_layer(m.layers[1].id)
+        pump(app, 20)
+        shot(win, file)
 
 
 if __name__ == "__main__":

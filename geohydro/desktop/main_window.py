@@ -45,7 +45,10 @@ from geohydro.project.storage import project_manifest, verify_project_file
 from . import icons, theme
 from .dialogs.import_wizard import ImportWizard
 from .dialogs.misc import AboutDialog, CRSToolDialog, HistoryDialog
-from .documents.dataset_document import DatasetDocument, crs_label, fmt_num
+from .documents.grid_document import GridDocument
+from .documents.map_document import MapView
+from .gridmap import GridMapMixin
+from .documents.dataset_document import DatasetDocument, fmt_num
 from .widgets.output_console import OutputConsole
 from .widgets.project_explorer import ProjectExplorer
 from .widgets.properties_panel import Prop, PropertiesPanel
@@ -73,7 +76,8 @@ RIBBON_LABELS = {
     "grid.tin": "Triangulation", "grid.rbf": "RBF", "grid.variogram": "Variogram",
     "grid.crossval": "Cross-Valid.", "map.contour": "Contour", "map.filled": "Filled",
     "map.relief": "Colour Relief", "map.post": "Post Map", "map.layout": "Layout",
-    "map.export": "Export Map", "3d.surface": "3D Surface", "3d.points": "3D Points",
+    "map.export": "Export Map", "grid_data": "Grid Data", "grid_open": "Open Grid",
+    "grid_export": "Export Grid", "grid.uk": "Universal Kriging", "3d.surface": "3D Surface", "3d.points": "3D Points",
     "terrain.slope": "Slope", "terrain.hillshade": "Hillshade", "terrain.profile": "Profile",
     "terrain.volume": "Volume", "hydro.fill": "Fill Sinks", "hydro.d8": "D8 Flow",
     "hydro.accum": "Accumulation", "hydro.streams": "Streams", "hydro.watershed": "Watershed",
@@ -84,7 +88,7 @@ RIBBON_LABELS = {
 }
 
 
-class MainWindow(QMainWindow):
+class MainWindow(GridMapMixin, QMainWindow):
     def __init__(self, settings: QSettings | None = None, parent=None):
         super().__init__(parent)
         self.settings = settings or QSettings()
@@ -107,6 +111,7 @@ class MainWindow(QMainWindow):
         self._build_ribbon()
         self.status = GeoStatusBar(self)
         self.setStatusBar(self.status)
+        self._wire_phase2()
 
         self._refresh_all()
         self._restore_state()
@@ -230,6 +235,7 @@ class MainWindow(QMainWindow):
         A("checklist", "Feature Checklist", self.open_checklist, "validate")
         A("about", f"About {APP_NAME}", lambda: AboutDialog(self).exec(), "info")
         self.actions["export_csv"].setEnabled(False)
+        self._phase2_actions()
 
         for key, ic in (
             ("edit.undo", None), ("data.import.raster", "raster"), ("data.import.vector", "vector"),
@@ -248,10 +254,11 @@ class MainWindow(QMainWindow):
             ("flood.stormwater", "drop"), ("gw.contours", "well"), ("gw.quality", "well"),
             ("reports.pdf", "pdf"), ("reports.xlsx", "report"), ("cloud.sync", "cloud"),
             ("account.license", "settings"), ("settings.language.ar", None),
+            ("grid.math", "grid"), ("map.vector", "vector"), ("map.density", "points"),
         ):
             self._plan(key, ic)
         self.actions["redo.planned"] = self._act("redo.planned", "Redo", cap="edit.undo")
-        self.actions["redo.planned"].setText("Redo (planned, Phase 2)")
+        self.actions["redo.planned"].setText(f"Redo (planned, Phase {capability('edit.undo').phase})")
 
     def _build_menus(self):
         from PySide6.QtWidgets import QMenuBar
@@ -271,7 +278,8 @@ class MainWindow(QMainWindow):
 
         self.recent_menu = self._make_recent_menu()
         menu("&File", ["new", "open", "open_sample", self.recent_menu, None, "save", "save_as", None,
-                       "import", "export_csv", "export_manifest", None, "exit"])
+                       "import", "grid_open", None, "export_csv", "grid_export", "map.export",
+                       "export_manifest", None, "exit"])
         menu("&Edit", ["edit.undo", "redo.planned", None, "copy", "select_all"])
         view = menu("&View", [])
         for d in (self.dock_explorer, self.dock_properties, self.dock_console):
@@ -286,10 +294,13 @@ class MainWindow(QMainWindow):
         menu("&Data", ["import", None, "table", "preview", "stats", "qc", None, "rename", "export_csv",
                        "remove", None, "data.import.raster", "data.import.vector", "data.import.netcdf",
                        "data.import.lidar"])
-        menu("&Grid", ["grid.idw", "grid.ok", "grid.uk", "grid.mincurv", "grid.natnb", "grid.nearest",
-                       "grid.tin", "grid.rbf", None, "grid.variogram", "grid.crossval"])
+        menu("&Grid", ["grid_data", None, "grid.idw", "grid.ok", "grid.uk", "grid.mincurv",
+                       "grid.natnb", "grid.nearest", "grid.tin", "grid.rbf", None, "grid.variogram",
+                       "grid.crossval", None, "grid_open", "grid_export", "grid_rename",
+                       "grid_remove", None, "grid.math"])
         menu("&Mapping", ["map.contour", "map.filled", "map.relief", "map.post", None, "map.layout",
-                          "map.export"])
+                          "map.export", "map_rename", "map_remove", None, "map.vector",
+                          "map.density"])
         menu("&Analysis", ["terrain.slope", "terrain.aspect", "terrain.hillshade", "terrain.curvature",
                            "terrain.profile", "terrain.volume"])
         menu("H&ydrology", ["hydro.fill", "hydro.d8", "hydro.accum", "hydro.streams", "hydro.watershed"])
@@ -355,12 +366,15 @@ class MainWindow(QMainWindow):
                     g.add_action(a[k])
 
         page("Home", [("Project", ["new", "open", "save"]), ("Data", ["import", "table", "stats", "qc"]),
+                      ("Grid && Map", ["grid_data", "map.relief", "map.filled"]),
                       ("Inspect", ["project_props", "history", "validate"]), ("Tools", ["crs_tool"])])
         page("Data", [("Import", ["import"]), ("Dataset", ["table", "preview", "stats", "qc", "export_csv",
                                                            "remove"]),
                       ("Other formats", ["data.import.raster", "data.import.vector", "data.import.netcdf",
                                          "data.import.lidar"])])
-        page("Grid", [("Gridding", ["grid.idw", "grid.ok", "grid.mincurv", "grid.natnb", "grid.tin", "grid.rbf"]),
+        page("Grid", [("Grid", ["grid_data", "grid_open", "grid_export"]),
+                      ("Methods", ["grid.idw", "grid.ok", "grid.mincurv", "grid.natnb", "grid.tin",
+                                   "grid.rbf"]),
                       ("Geostatistics", ["grid.variogram", "grid.crossval"])])
         page("Map", [("Maps", ["map.contour", "map.filled", "map.relief", "map.post"]),
                      ("Layout", ["map.layout", "map.export"])])
@@ -427,8 +441,24 @@ class MainWindow(QMainWindow):
         if hasattr(self, "status"):
             self.status.set_crs(self._crs_short(p.default_crs))
         self.start_page.set_recent(self.recent_files())
+        for k in ("grid_export", "grid_rename", "grid_remove", "map.contour", "map.filled",
+                  "map.relief"):
+            self.actions[k].setEnabled(bool(p.grids))
+        for k in ("map_rename", "map_remove", "map.export"):
+            self.actions[k].setEnabled(bool(p.maps))
+        self.actions["map.post"].setEnabled(has_ds)
+        self.actions["grid_data"].setEnabled(any(d.has_z for d in p.datasets.values()))
         sel = self.selected_dataset_id()
-        if sel and sel in p.datasets:
+        gsel = self.selected_item("grid")
+        msel = self.selected_item("map")
+        if gsel and gsel in p.grids:
+            self.explorer.select_item("grids", gsel)
+            self._show_grid_properties(gsel)
+        elif msel and msel in p.maps:
+            self.explorer.select_item("maps", msel)
+            target = getattr(self, "_map_prop_target", (None, None))
+            self._show_map_item_properties(msel, target[1] if target[0] == msel else "")
+        elif sel and sel in p.datasets:
             self.explorer.select_dataset(sel)
             self._show_dataset_properties(sel)
         else:
@@ -523,7 +553,9 @@ class MainWindow(QMainWindow):
         self.set_project(proj)
         self._add_recent(path)
         self.settings.setValue("last_dir", str(Path(path).parent))
-        self.console.success(f"Opened {Path(path).name} (revision {proj.revision}, {len(proj.datasets)} datasets).")
+        self.console.success(f"Opened {Path(path).name} (revision {proj.revision}, "
+                             f"{len(proj.datasets)} datasets, {len(proj.grids)} grids, "
+                             f"{len(proj.maps)} maps).")
         if proj.dirty:
             self.console.warning("The project was created with an older file format and was upgraded in "
                                  "memory. The original file is unchanged until you save.")
@@ -747,6 +779,8 @@ class MainWindow(QMainWindow):
         return path
 
     def _explorer_action(self, name, did):
+        if self._phase2_context(name, did):
+            return
         {"open": lambda: self.open_dataset(did),
          "stats": lambda: (self.open_dataset(did), self._dataset_tab("Statistics")),
          "qc": lambda: (self.open_dataset(did), self._dataset_tab("Quality Report")),
@@ -758,12 +792,30 @@ class MainWindow(QMainWindow):
     def _on_selection(self, kind, ident):
         if kind == "dataset":
             self._show_dataset_properties(ident)
+        elif kind == "grid":
+            self._show_grid_properties(ident)
+        elif kind == "map":
+            self._show_map_item_properties(ident, "")
         elif kind == "project" or kind == "":
             self.show_project_properties()
         elif kind == "category":
             self.properties.show_properties(self.explorer.currentItem().text(0), [])
 
     def _on_subwindow(self, sub):
+        w = sub.widget() if sub else None
+        if isinstance(w, GridDocument):
+            if w.grid_id in self.project.grids:
+                self.explorer.select_item("grids", w.grid_id)
+                self._show_grid_properties(w.grid_id)
+                self.status.set_scale("—")
+            return
+        if isinstance(w, MapView):
+            if w.map_id in self.project.maps:
+                self.explorer.select_item("maps", w.map_id)
+                self._show_map_item_properties(w.map_id, w.current_layer_id() or "")
+                self.status.set_crs(self._crs_short(w.doc.crs))
+                self.status.set_scale("page view")
+            return
         if sub and isinstance(sub.widget(), DatasetDocument):
             did = sub.widget().dataset_id
             ds = self.project.datasets.get(did)
@@ -806,6 +858,8 @@ class MainWindow(QMainWindow):
             Prop("File", "Created (UTC)", p.created),
             Prop("File", "Modified (UTC)", p.modified),
             Prop("Contents", "Point datasets", len(p.datasets)),
+            Prop("Contents", "Grids", len(p.grids)),
+            Prop("Contents", "Maps", len(p.maps)),
             Prop("Contents", "History entries", len(p.history)),
             Prop("Contents", "Outputs", len(p.outputs)),
         ]
@@ -850,6 +904,8 @@ class MainWindow(QMainWindow):
 
     def _property_edited(self, key, value):
         p = self.project
+        if self._phase2_property_edited(key, value):
+            return
         try:
             if key.startswith("project."):
                 field = key.split(".", 1)[1]
@@ -912,6 +968,16 @@ class MainWindow(QMainWindow):
             if not Path(ds.source.path).exists():
                 self.console.warning(f"'{ds.name}': source file no longer found at {ds.source.path} "
                                      "(the imported copy in the project is unaffected)")
+        for m in p.maps.values():
+            missing = [lyr.name for lyr in m.layers
+                       if p.item(getattr(lyr, "grid_id", "") or getattr(lyr, "dataset_id", "")) is None]
+            if missing:
+                problems += 1
+                self.console.warning(f"Map '{m.name}': missing data source for layer(s) "
+                                     + ", ".join(missing))
+        for g in p.grids.values():
+            if not g.crs:
+                self.console.warning(f"Grid '{g.name}': no coordinate reference system assigned")
         if p.path and not p.dirty:
             try:
                 for line in verify_project_file(p.path):

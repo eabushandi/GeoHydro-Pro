@@ -1,5 +1,153 @@
 # Test results
 
+## Phase 2 (v0.2.0) — local run
+
+Run: 2026-11-20, Linux (Ubuntu 24.04, x86-64), Python 3.13.18, Qt offscreen platform.
+NumPy 2.5.5, pandas 3.1.1, SciPy 1.18.1, Matplotlib 3.11.2, PySide6 6.8.1, PyProj 3.8.0,
+PyKrige 1.7.3 (reference for the Kriging comparison tests).
+
+**Result: 179 passed in 35.3 s** (0 failed, 0 skipped)
+
+| Test file | Tests | Passed |
+|---|---|---|
+| `tests/test_gridding.py` | 22 | 22 |
+| `tests/test_gui.py` | 16 | 16 |
+| `tests/test_gui_phase2.py` | 16 | 16 |
+| `tests/test_importer.py` | 9 | 9 |
+| `tests/test_interpolation.py` | 37 | 37 |
+| `tests/test_mapping.py` | 11 | 11 |
+| `tests/test_project_storage.py` | 20 | 20 |
+| `tests/test_qc.py` | 18 | 18 |
+| `tests/test_readers.py` | 21 | 21 |
+| `tests/test_statistics_crs_units.py` | 9 | 9 |
+
+The Windows CI results for this version are added below once the run completes.
+
+### Numerical validation
+
+* Kriging against PyKrige 1.7.3 (spherical, exponential and linear models, global
+  neighbourhood): estimates and variances must agree within 1e-9 (Ordinary) and 1e-8
+  (Universal, linear drift); measured agreement is about 1e-13 and 1e-10. PyKrige has no
+  moving-neighbourhood equivalent, so local-search kriging is checked by properties
+  (exactness, zero variance at data, variance approaching the sill far from data, local = global when the neighbourhood holds all points) instead.
+* RBF against SciPy `RBFInterpolator` called directly; Natural Neighbour exactness, linear
+  precision and weight properties; Minimum Curvature plane reproduction and tension.
+* Accuracy against the known generating surface of the synthetic terrain survey: see
+  `docs/GRIDDING.md` section 9 (reproducible with `python tools/validate_gridding.py`).
+
+### Phase 2 individual tests
+
+```
+tests/test_gridding.py::test_geometry_from_spacing_keeps_minimum_and_extends_maximum PASSED
+tests/test_gridding.py::test_geometry_validation PASSED
+tests/test_gridding.py::test_geometry_from_points_and_nice_spacing PASSED
+tests/test_gridding.py::test_bilinear_sample_reproduces_plane_and_respects_blanks PASSED
+tests/test_gridding.py::test_grid_file_roundtrip_exact[surfer_ascii] PASSED
+tests/test_gridding.py::test_grid_file_roundtrip_exact[surfer7_binary] PASSED
+tests/test_gridding.py::test_grid_file_roundtrip_exact[esri_ascii] PASSED
+tests/test_gridding.py::test_surfer6_binary_roundtrip_single_precision PASSED
+tests/test_gridding.py::test_read_handwritten_dsaa_and_esri_corner PASSED
+tests/test_gridding.py::test_grid_file_errors PASSED
+tests/test_gridding.py::test_xyz_export PASSED
+tests/test_gridding.py::test_prepare_points_invalid_and_duplicates PASSED
+tests/test_gridding.py::test_grid_data_records_provenance PASSED
+tests/test_gridding.py::test_blanking_hull_and_distance PASSED
+tests/test_gridding.py::test_all_blank_raises_and_cancel PASSED
+tests/test_gridding.py::test_kriging_variance_grid PASSED
+tests/test_gridding.py::test_residual_analysis_definition PASSED
+tests/test_gridding.py::test_metrics_hand_computed PASSED
+tests/test_gridding.py::test_loo_nearest_on_a_line_is_hand_checkable PASSED
+tests/test_gridding.py::test_loo_kriging_reports_standardised_errors PASSED
+tests/test_gridding.py::test_loo_subsampling_is_reported_and_reproducible PASSED
+tests/test_gridding.py::test_loo_min_curvature PASSED
+tests/test_gui_phase2.py::test_run_gridding_adds_grid_and_opens_document PASSED
+tests/test_gui_phase2.py::test_gridding_failure_is_reported_not_raised PASSED
+tests/test_gui_phase2.py::test_grid_data_dialog_request_and_cross_validation PASSED
+tests/test_gui_phase2.py::test_variogram_dialog_fit_feeds_kriging PASSED
+tests/test_gui_phase2.py::test_new_map_of_each_type[contour] PASSED
+tests/test_gui_phase2.py::test_new_map_of_each_type[filled_contour] PASSED
+tests/test_gui_phase2.py::test_new_map_of_each_type[colour_relief] PASSED
+tests/test_gui_phase2.py::test_new_map_of_each_type[post] PASSED
+tests/test_gui_phase2.py::test_new_map_without_source_reports_error PASSED
+tests/test_gui_phase2.py::test_map_view_editing PASSED
+tests/test_gui_phase2.py::test_drag_scale_bar_stores_position PASSED
+tests/test_gui_phase2.py::test_export_map_all_formats PASSED
+tests/test_gui_phase2.py::test_export_and_reopen_grid_file PASSED
+tests/test_gui_phase2.py::test_remove_grid_used_by_map_then_validate PASSED
+tests/test_gui_phase2.py::test_rename_and_remove_map PASSED
+tests/test_gui_phase2.py::test_save_and_reopen_project_with_grids_and_maps PASSED
+tests/test_interpolation.py::test_exact_methods_honour_data[idw] PASSED
+tests/test_interpolation.py::test_exact_methods_honour_data[natural_neighbour] PASSED
+tests/test_interpolation.py::test_exact_methods_honour_data[nearest] PASSED
+tests/test_interpolation.py::test_exact_methods_honour_data[ordinary_kriging] PASSED
+tests/test_interpolation.py::test_exact_methods_honour_data[rbf] PASSED
+tests/test_interpolation.py::test_exact_methods_honour_data[tin] PASSED
+tests/test_interpolation.py::test_exact_methods_honour_data[universal_kriging] PASSED
+tests/test_interpolation.py::test_linear_precision[tin] PASSED
+tests/test_interpolation.py::test_linear_precision[natural_neighbour] PASSED
+tests/test_interpolation.py::test_linear_precision[rbf] PASSED
+tests/test_interpolation.py::test_linear_precision[universal_kriging] PASSED
+tests/test_interpolation.py::test_min_curvature_reproduces_planes_with_and_without_tension PASSED
+tests/test_interpolation.py::test_nearest_matches_brute_force_voronoi PASSED
+tests/test_interpolation.py::test_nearest_radius_blanks PASSED
+tests/test_interpolation.py::test_idw_hand_computed_and_bounded PASSED
+tests/test_interpolation.py::test_idw_search_min_points_blank PASSED
+tests/test_interpolation.py::test_anisotropy_equivalent_to_rotated_and_scaled_coordinates PASSED
+tests/test_interpolation.py::test_anisotropy_validation PASSED
+tests/test_interpolation.py::test_natural_neighbour_weights_properties_and_brute_force PASSED
+tests/test_interpolation.py::test_natural_neighbour_outside_hull_blank PASSED
+tests/test_interpolation.py::test_tin_hull_and_collinear PASSED
+tests/test_interpolation.py::test_rbf_matches_scipy_and_smoothing PASSED
+tests/test_interpolation.py::test_min_curvature_close_to_thin_plate_spline PASSED
+tests/test_interpolation.py::test_tension_reduces_overshoot PASSED
+tests/test_interpolation.py::test_min_curvature_limits PASSED
+tests/test_interpolation.py::test_variogram_model_values PASSED
+tests/test_interpolation.py::test_experimental_variogram_hand_computed PASSED
+tests/test_interpolation.py::test_directional_variogram_detects_anisotropy PASSED
+tests/test_interpolation.py::test_variogram_fit_recovers_parameters PASSED
+tests/test_interpolation.py::test_kriging_matches_pykrige[spherical-params0-mine0] PASSED
+tests/test_interpolation.py::test_kriging_matches_pykrige[exponential-params1-mine1] PASSED
+tests/test_interpolation.py::test_kriging_matches_pykrige[linear-params2-mine2] PASSED
+tests/test_interpolation.py::test_kriging_properties PASSED
+tests/test_interpolation.py::test_kriging_anisotropy_equals_transformed_isotropic PASSED
+tests/test_interpolation.py::test_kriging_input_errors PASSED
+tests/test_interpolation.py::test_accuracy_against_known_sample_surface PASSED
+tests/test_interpolation.py::test_universal_kriging_singular_systems_are_reported PASSED
+tests/test_mapping.py::test_level_spec_modes PASSED
+tests/test_mapping.py::test_map_document_roundtrip PASSED
+tests/test_mapping.py::test_render_all_layer_types PASSED
+tests/test_mapping.py::test_render_reports_missing_sources_and_empty_map PASSED
+tests/test_mapping.py::test_contour_levels_outside_range_warn PASSED
+tests/test_mapping.py::test_true_north_sign_and_geographic_scale PASSED
+tests/test_mapping.py::test_export_formats[png] PASSED
+tests/test_mapping.py::test_export_formats[jpg] PASSED
+tests/test_mapping.py::test_export_formats[svg] PASSED
+tests/test_mapping.py::test_export_formats[pdf] PASSED
+tests/test_mapping.py::test_export_resolution_and_format_checks PASSED
+tests/test_project_storage.py::test_frame_codec_exact_roundtrip PASSED
+tests/test_project_storage.py::test_save_load_roundtrip PASSED
+tests/test_project_storage.py::test_revision_increments_and_backup PASSED
+tests/test_project_storage.py::test_conflict_detection PASSED
+tests/test_project_storage.py::test_refuses_to_overwrite_other_project_or_file PASSED
+tests/test_project_storage.py::test_checksum_mismatch_detected PASSED
+tests/test_project_storage.py::test_not_a_project PASSED
+tests/test_project_storage.py::test_newer_format_rejected PASSED
+tests/test_project_storage.py::test_migration_runs_in_memory_and_preserves_file PASSED
+tests/test_project_storage.py::test_missing_migration_is_an_error PASSED
+tests/test_project_storage.py::test_manifest_is_json_serialisable PASSED
+tests/test_project_storage.py::test_sample_project_loads PASSED
+tests/test_project_storage.py::test_project_model_operations PASSED
+tests/test_project_storage.py::test_duplicate_dataset_names_get_suffix PASSED
+tests/test_project_storage.py::test_save_copy_to_new_location_keeps_uuid PASSED
+tests/test_project_storage.py::test_grid_and_map_roundtrip PASSED
+tests/test_project_storage.py::test_grid_checksum_and_shape_mismatch_detected PASSED
+tests/test_project_storage.py::test_remove_grid_used_by_map_is_reported PASSED
+tests/test_project_storage.py::test_v1_project_migrates_to_v2 PASSED
+tests/test_project_storage.py::test_sample_project_has_grids_and_maps PASSED
+```
+
+## Phase 1 (v0.1.0)
+
 Run: 2026-11-19, Linux (Ubuntu 24.04, x86-64), Python 3.13.18, Qt offscreen platform.
 
 **Result: 88 passed in 11.53s**

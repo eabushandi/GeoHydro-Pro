@@ -1,4 +1,4 @@
-# GeoHydro Pro project format (`.ghproj`) — version 1
+# GeoHydro Pro project format (`.ghproj`) — version 2
 
 A project is a single **SQLite 3** database file with the extension `.ghproj`.
 Implementation: `geohydro/project/storage.py`.
@@ -16,7 +16,7 @@ migrations (development rule J).
 | key | meaning |
 |---|---|
 | `format_name` | always `GeoHydroPro.Project` |
-| `format_version` | integer, currently `1` |
+| `format_version` | integer, currently `2` (v1 = Phase 1, points only; v2 adds grids and maps) |
 | `app_version` | application version that wrote the file |
 | `project_uuid` | stable project identity (hex UUID) |
 | `revision` | integer, incremented on every save |
@@ -27,7 +27,8 @@ migrations (development rule J).
 
 One row (`id = 1`), column `manifest`: JSON produced by `project_manifest()` — name,
 description, author, default CRS, default units, visualisation/UI settings, output files
-list, and a summary of datasets (id, name, CRS, units, point count, source info). This JSON
+list, and a summary of datasets (id, name, CRS, units, point count, source info), grids
+(id, name, size, method) and maps (id, name). This JSON
 is the platform-neutral description intended for the web platform and synchronisation.
 
 ### `datasets`
@@ -52,11 +53,32 @@ is the platform-neutral description intended for the web platform and synchronis
 Dataset tables always contain `X`, `Y`, optional `Z`, `source_row` (1-based data row in the
 source file) and any other source columns.
 
+### `grids` (format v2)
+
+| column | content |
+|---|---|
+| `id`, `position`, `name` | grid UUID, Explorer order, display name |
+| `crs`, `xy_units`, `z_units`, `z_label` | as for datasets |
+| `geometry` | JSON: `x_min, x_max, y_min, y_max, nx, ny` (node registered) |
+| `metadata` | JSON provenance: method and title, parameters as requested and as used, data preparation, blanking, residuals, solver, cross-validation (if run), software, created, elapsed time, warnings; or the source file for imported grids |
+| `notes` | free text |
+| `data_encoding` | `npy-f8+gzip` |
+| `data` | gzip-compressed NumPy `.npy` of the float64 Z array, shape `(ny, nx)`, row 0 = south, `NaN` = blank. Bit-exact round trip. |
+| `data_sha256` | SHA-256 of `data` (verified on load, together with shape = geometry) |
+
+### `maps` (format v2)
+
+| column | content |
+|---|---|
+| `id`, `position`, `name` | map UUID, Explorer order, display name |
+| `document` | JSON `MapDocument`: page, orientation, margins, CRS, extent, layers (type, source id, style, levels), colour bar, scale bar, north arrow, coordinate grid, annotations. Layers refer to datasets and grids by id; a missing source is reported, not an error. See `docs/MAPPING.md`. |
+
 ### `history`
 
 Append-only processing history: `timestamp` (UTC), `action` (e.g. `dataset.import`,
 `dataset.rename`, `dataset.assign_crs`, `project.metadata`, `dataset.export_csv`,
-`project.migrate`), `details` (JSON — for imports this includes the source checksum, read
+`grid.create`, `grid.rename`, `grid.remove`, `grid.export`, `map.create`, `map.rename`,
+`map.remove`, `map.export`, `project.migrate`), `details` (JSON — for imports this includes the source checksum, read
 options, import settings and QC summary), `app_version`.
 
 ## Safety guarantees
@@ -71,8 +93,8 @@ options, import settings and QC summary), `app_version`.
   project or not a project, and `ProjectConflictError` if the target holds a *newer revision
   of the same project* (e.g. saved from another device). The UI asks the user explicitly
   (overwrite newer / Save As / cancel).
-* **Integrity:** SQLite `PRAGMA integrity_check`, per-dataset SHA-256 and row-count checks on
-  load (`Project → Validate Project` runs them on demand).
+* **Integrity:** SQLite `PRAGMA integrity_check`, per-dataset SHA-256 and row-count checks,
+  per-grid SHA-256 and shape checks on load (`Project → Validate Project` runs them on demand).
 * **Source data is never modified.** The project stores an imported copy plus the source
   file's checksum, so a later change to the source can be detected.
 
@@ -81,3 +103,12 @@ options, import settings and QC summary), `app_version`.
 Increase `FORMAT_VERSION` for any schema or semantic change, and register a migration from
 the previous version in `MIGRATIONS`. Each migration receives an in-memory SQLite connection
 and must be covered by a test with a stored fixture file of the old version.
+
+## Migrations
+
+| From | To | Change | Test |
+|---|---|---|---|
+| 1 | 2 | adds the empty `grids` and `maps` tables | `test_v1_project_migrates_to_v2` with the stored v1 file `tests/fixtures/project_format_v1.ghproj` |
+
+A migrated project opens marked as modified, with a `project.migrate` history entry; the v1
+file on disk is unchanged until the user saves.

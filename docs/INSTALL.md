@@ -9,7 +9,7 @@
 | macOS | Expected to work (all dependencies publish macOS wheels); not tested. |
 
 Packaged installers (PyInstaller, Start-menu entry, desktop shortcut, code signing) are
-planned for Phase 8. Phase 1 runs from source.
+planned for Phase 8. Phases 1 and 2 run from source.
 
 ## Requirements
 
@@ -29,6 +29,7 @@ planned for Phase 8. Phase 1 runs from source.
 | pyproj | >=3.6, <4 | 3.8.0 (PROJ 9.8.1) |
 | matplotlib | >=3.8, <4 | 3.11.2 |
 | pytest / pytest-qt (dev) | >=8 / >=4.4 | 9.2.0 / 4.5.0 |
+| pykrige (dev, Kriging reference tests) | ==1.7.3 | 1.7.3 (wheels for Windows, Python 3.11–3.13) |
 
 Only the verified versions have actually been tested together; the lower bounds are the
 oldest versions whose APIs the code uses and should be confirmed in CI.
@@ -64,7 +65,8 @@ Other ways to start: `python -m geohydro.desktop [project.ghproj]` or `python ru
 ## Running the tests
 
 ```bash
-python -m pytest            # all 88 tests
+python -m pytest            # all tests (179 at v0.2.0)
+python tools/validate_gridding.py    # reproduce the gridding validation table
 python -m pytest tests/test_gui.py   # GUI tests only (offscreen)
 ```
 

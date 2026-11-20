@@ -161,13 +161,66 @@ def make_sample_project():
     s = apply_crs(ImportSettings("Easting_m", "Northing_m", "Elevation_m"), "EPSG:32639")
     proj.add_dataset(import_point_file(OUT / "terrain_survey_utm39n.csv", settings=s, name="Terrain survey"))
     s = apply_crs(ImportSettings("X (m)", "Y (m)", "Water_Level_mAMSL"), "EPSG:32639")
-    proj.add_dataset(import_point_file(OUT / "groundwater_wells.xlsx", settings=s, name="Monitoring wells"))
+    wells = proj.add_dataset(import_point_file(OUT / "groundwater_wells.xlsx", settings=s,
+                                               name="Monitoring wells"))
+    _add_sample_grids_and_maps(proj, proj.dataset_by_name("Terrain survey"), wells)
     target = HERE / "sample_project.ghproj"
     if target.exists():
         target.unlink()
     save_project(proj, target)
     for p in HERE.glob("sample_project.ghproj.bak"):
         p.unlink()
+
+
+def _add_sample_grids_and_maps(proj, terrain, wells):
+    """Phase 2 content: a minimum-curvature terrain grid, a kriged head grid and two maps."""
+    from geohydro.engine.gridding.gridder import BlankingOptions, GriddingRequest, grid_data
+    from geohydro.engine.gridding.grid import GridGeometry
+    from geohydro.engine.interpolation.variogram import experimental_variogram, fit_variogram
+    from geohydro.engine.mapping.levels import LevelSpec
+    from geohydro.engine.mapping.model import (ColourReliefLayer, ContourLayer,
+                                               FilledContourLayer, MapDocument, PostLayer)
+
+    def run(ds, request, name):
+        d = ds.data
+        x, y, z = (d[c].to_numpy(float) for c in ("X", "Y", "Z"))
+        src = {"dataset_id": ds.id, "dataset_name": ds.name, "z_column": ds.z_label}
+        return proj.add_grid(grid_data(x, y, z, request, name=name, crs=ds.crs,
+                                       xy_units=ds.xy_units, z_units=ds.z_units,
+                                       z_label=ds.z_label, source=src).grid)
+
+    d = terrain.data
+    geom = GridGeometry.from_points(d["X"], d["Y"], n_long=120)
+    tg = run(terrain, GriddingRequest("min_curvature", {"tension": 0.25}, geom,
+                                      BlankingOptions(outside_hull=True)), "Terrain (min. curvature)")
+    # The heads carry a strong regional gradient, so a variogram of the raw values never
+    # levels off. Universal kriging with a linear drift is used, with the variogram
+    # fitted to the residuals from a least-squares plane (the usual practical approach).
+    w = wells.data
+    x, y, z = (w[c].to_numpy(float) for c in ("X", "Y", "Z"))
+    A = np.c_[np.ones_like(x), x - x.mean(), y - y.mean()]
+    resid = z - A @ np.linalg.lstsq(A, z, rcond=None)[0]
+    model, rep = fit_variogram(experimental_variogram(x, y, resid), "spherical")
+    assert not rep.get("warnings"), rep.get("warnings")
+    geom = GridGeometry.from_points(w["X"], w["Y"], n_long=80, margin=0.05)
+    hg = run(wells, GriddingRequest("universal_kriging",
+                                    {"variogram": model.to_dict(), "drift": "linear"}, geom,
+                                    BlankingOptions(outside_hull=True)),
+             "Groundwater head (kriging)")
+    proj.add_map(MapDocument(
+        name="Terrain relief map", title="Terrain surface", subtitle="Minimum curvature, tension 0.25",
+        crs=tg.crs, layers=[ColourReliefLayer(grid_id=tg.id, name="Colour relief"),
+                            ContourLayer(grid_id=tg.id, name="Contours", line_width=0.4,
+                                         major_width=0.9, levels=LevelSpec("interval", interval=5)),
+                            PostLayer(dataset_id=terrain.id, name="Survey points", size=3,
+                                      face_color="#111111")]))
+    proj.add_map(MapDocument(
+        name="Groundwater head map", title="Groundwater head",
+        subtitle="Universal kriging, linear drift (variogram fitted to detrended heads)",
+        crs=hg.crs, layers=[FilledContourLayer(grid_id=hg.id, name="Filled contours",
+                                               palette="viridis"),
+                            ContourLayer(grid_id=hg.id, name="Head contours", labels=True),
+                            PostLayer(dataset_id=wells.id, name="Wells", label_column="Well_ID")]))
 
 
 def main():

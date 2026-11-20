@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "geohydro-pro"
-version = "0.1.0"
+version = "0.2.0"
 description = "GeoHydro Pro - scientific mapping, geospatial analysis, hydrology and environmental engineering platform"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"

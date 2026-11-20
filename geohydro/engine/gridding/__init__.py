@@ -1,8 +1,9 @@
-"""Grid definition, grid statistics, cross-validation and residual analysis.
+"""Regular grids, gridding orchestration, grid files, cross-validation and residuals.
 
-STATUS: planned for Phase 2. No calculations are implemented in this
-package yet; nothing here may be presented to users as a working feature.
+STATUS: implemented in Phase 2. See docs/GRIDDING.md for the methodology.
 """
 
-STATUS = "planned"
+from .grid import Grid, GridGeometry, grid_statistics  # noqa: F401
+
+STATUS = "implemented"
 PHASE = 2

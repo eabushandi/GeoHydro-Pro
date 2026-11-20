@@ -1,10 +1,8 @@
 """GUI tests (pytest-qt, offscreen). They drive the real widgets and engine."""
 
 import pandas as pd
-import pytest
 from PySide6.QtCore import QSettings
 
-from geohydro.desktop.app import create_app
 from geohydro.desktop.dialogs.import_wizard import ImportWizard
 from geohydro.desktop.documents.dataset_document import DatasetDocument
 from geohydro.desktop.main_window import MainWindow
@@ -14,23 +12,6 @@ from geohydro.project import load_project, save_project
 EXPECTED_MENUS = ["File", "Edit", "View", "Project", "Data", "Grid", "Mapping", "Analysis", "Hydrology",
                   "Coastal Engineering", "Flood Analysis", "Groundwater", "3D Visualization", "Reports",
                   "Tools", "Settings", "Help"]
-
-
-@pytest.fixture(scope="session")
-def app():
-    return create_app(["test"])
-
-
-@pytest.fixture
-def win(app, qtbot, tmp_path):
-    w = MainWindow(QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat))
-    qtbot.addWidget(w)
-    w.confirm = lambda *a, **k: True
-    w.choose = lambda *a, **k: "Discard"
-    w.show()
-    yield w
-    w.project.dirty = False
-    w.close()
 
 
 def import_files(win, qtbot, paths, crs="EPSG:32639", configure=None):
@@ -77,7 +58,9 @@ def test_planned_features_are_disabled_and_labelled(win):
 def test_explorer_categories(win):
     labels = [win.explorer.category_items[k].text(0) for k in win.explorer.category_items]
     assert labels[0].startswith("Point Datasets")
-    assert any("Grid Files" in t and "planned" in t for t in labels)
+    assert any(t.startswith("Grids") and "planned" not in t for t in labels)
+    assert any(t.startswith("Maps") and "planned" not in t for t in labels)
+    assert any("Raster Layers" in t and "planned" in t for t in labels)
     assert any("Reports" in t for t in labels)
 
 

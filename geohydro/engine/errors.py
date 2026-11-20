@@ -35,3 +35,19 @@ class ProjectConflictError(GeoHydroError):
 
 class ProjectOverwriteError(GeoHydroError):
     """The target file belongs to a different project; confirmation needed."""
+
+
+class GriddingError(GeoHydroError):
+    """A grid could not be defined or computed (bad parameters, too few points)."""
+
+
+class GridFileError(GeoHydroError):
+    """A grid file could not be read or written."""
+
+
+class MapError(GeoHydroError):
+    """A map could not be built or exported."""
+
+
+class CancelledError(GeoHydroError):
+    """The user cancelled a long-running calculation."""

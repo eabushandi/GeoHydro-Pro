@@ -1,4 +1,4 @@
-# Architecture (Phase 1)
+# Architecture (Phases 1–2)
 
 ## Layers
 
@@ -14,9 +14,10 @@
  ├──────────────────────────────────────────────────────────────┤
  │ geohydro.engine    data (readers, parsing, QC, statistics,    │
  │                    dataset, importer), crs, units,            │
+ │                    interpolation, gridding, mapping,          │
  │                    capabilities; planned science modules      │
  └──────────────────────────────────────────────────────────────┘
-        NumPy · pandas · SciPy · openpyxl · PyProj
+        NumPy · pandas · SciPy · openpyxl · PyProj · Matplotlib
 ```
 
 Rules:
@@ -39,9 +40,27 @@ Rules:
 calls `preview`/`qc_preview`, which are the same functions on a row-limited read, so the
 preview is exactly what will be imported. Details: [DATA_IMPORT.md](DATA_IMPORT.md).
 
+## Gridding and mapping (Phase 2)
+
+* `engine/interpolation/`: one class per method behind a common `Interpolator` interface
+  (`fit`, `predict`, `parameters`), shared data preparation, KD-tree search and anisotropy,
+  variograms. No UI code.
+* `engine/gridding/`: grid model (node registered, row 0 = south), grid file formats,
+  `grid_data()` orchestration (preparation → interpolation → blanking → residuals →
+  provenance metadata) and leave-one-out cross-validation. `methods.METHODS` is the method
+  registry the dialog is built from.
+* `engine/mapping/`: `MapDocument` (plain data, JSON), levels and palettes, and
+  `render_map()`/`export_map()` on a plain Matplotlib `Figure`. The desktop page view and
+  export use the same renderer, and a web or batch backend can too.
+* Desktop: `dialogs/grid_dialog.py`, `dialogs/variogram_dialog.py`,
+  `documents/grid_document.py`, `documents/map_document.py`, with the main-window wiring in
+  `desktop/gridmap.py` (a mixin, keeping `main_window.py` from growing further).
+
+Methods and limitations: [GRIDDING.md](GRIDDING.md), [MAPPING.md](MAPPING.md).
+
 ## Persistence
 
-`.ghproj` = one SQLite database, format version 1. See [PROJECT_FORMAT.md](PROJECT_FORMAT.md).
+`.ghproj` = one SQLite database, format version 2 (grids and maps added; v1 files migrate). See [PROJECT_FORMAT.md](PROJECT_FORMAT.md).
 The `project_manifest()` JSON is the platform-neutral description intended for the web
 platform and for synchronisation (Phase 7).
 
@@ -58,6 +77,10 @@ platform and for synchronisation (Phase 7).
 | Import wizard | `desktop/dialogs/import_wizard.py` |
 | Dataset document (table / preview / statistics / QC) | `desktop/documents/dataset_document.py` |
 | Point preview (matplotlib) | `desktop/widgets/point_preview.py` |
+| Grid Data dialog, variogram dialog | `desktop/dialogs/grid_dialog.py`, `variogram_dialog.py` |
+| Grid document (preview / statistics / provenance) | `desktop/documents/grid_document.py` |
+| Map page view and layout editing | `desktop/documents/map_document.py` |
+| Gridding and mapping actions | `desktop/gridmap.py` |
 | Theme and original icons | `desktop/theme.py`, `desktop/icons.py` |
 
 ## Deviations from the suggested structure (section 27)

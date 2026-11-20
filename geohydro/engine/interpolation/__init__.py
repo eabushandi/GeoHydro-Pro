@@ -1,8 +1,10 @@
-"""Interpolation methods: IDW, Ordinary/Universal Kriging, Minimum Curvature, Natural Neighbour, Nearest Neighbour, Linear Triangulation, RBF.
+"""Interpolation methods: IDW, Ordinary/Universal Kriging, Minimum Curvature,
+Natural Neighbour, Nearest Neighbour, Linear Triangulation and RBF, plus
+variogram analysis.
 
-STATUS: planned for Phase 2. No calculations are implemented in this
-package yet; nothing here may be presented to users as a working feature.
+STATUS: implemented in Phase 2. See docs/GRIDDING.md for the methodology,
+assumptions and limitations of every method.
 """
 
-STATUS = "planned"
+STATUS = "implemented"
 PHASE = 2

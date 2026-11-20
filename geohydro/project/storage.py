@@ -1,4 +1,4 @@
-"""GeoHydro Pro project file format (``.ghproj``), version 1.
+"""GeoHydro Pro project file format (``.ghproj``), version 2.
 
 A project file is a single SQLite 3 database. SQLite is used because it is
 transactional, portable across Windows/Linux/macOS, readable from Python on
@@ -36,7 +36,11 @@ import pandas as pd
 
 from geohydro import __version__
 from geohydro.engine.data.dataset import PointDataset, SourceInfo, utc_now
+from geohydro.engine.gridding.grid import Grid, GridGeometry
+from geohydro.engine.mapping.model import MapDocument
 from geohydro.engine.errors import (
+    GriddingError,
+    MapError,
     ProjectConflictError,
     ProjectFormatError,
     ProjectIntegrityError,
@@ -46,9 +50,10 @@ from geohydro.engine.errors import (
 from .model import HistoryEntry, Project
 
 FORMAT_NAME = "GeoHydroPro.Project"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 FILE_EXTENSION = ".ghproj"
 DATA_ENCODING = "csv+gzip"
+GRID_ENCODING = "npy-f8+gzip"
 
 SCHEMA_V1 = """
 CREATE TABLE meta (
@@ -88,9 +93,40 @@ CREATE TABLE history (
 );
 """
 
+# Added in format version 2 (Phase 2): grids and map documents.
+SCHEMA_V2_ADDITIONS = """
+CREATE TABLE grids (
+    id            TEXT PRIMARY KEY,
+    position      INTEGER NOT NULL,
+    name          TEXT NOT NULL,
+    crs           TEXT,
+    xy_units      TEXT NOT NULL,
+    z_units       TEXT NOT NULL,
+    z_label       TEXT NOT NULL,
+    geometry      TEXT NOT NULL,      -- JSON GridGeometry (node registered)
+    metadata      TEXT NOT NULL,      -- JSON provenance: method, parameters, residuals ...
+    notes         TEXT NOT NULL DEFAULT '',
+    data_encoding TEXT NOT NULL,
+    data          BLOB NOT NULL,      -- gzip(.npy float64, shape (ny, nx), NaN = blank)
+    data_sha256   TEXT NOT NULL
+);
+CREATE TABLE maps (
+    id        TEXT PRIMARY KEY,
+    position  INTEGER NOT NULL,
+    name      TEXT NOT NULL,
+    document  TEXT NOT NULL           -- JSON MapDocument
+);
+"""
+SCHEMA = SCHEMA_V1 + SCHEMA_V2_ADDITIONS
+
+
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    conn.executescript(SCHEMA_V2_ADDITIONS)
+
+
 # from_version -> function(conn) upgrading the schema/data to from_version+1.
 # Register migrations here whenever FORMAT_VERSION is increased.
-MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
+MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {1: _migrate_v1_to_v2}
 
 
 # --------------------------------------------------------------------------
@@ -149,6 +185,17 @@ def decode_frame(blob: bytes, columns: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(out, columns=[c["name"] for c in columns])
 
 
+def encode_grid(z: np.ndarray) -> tuple[bytes, str]:
+    buf = io.BytesIO()
+    np.save(buf, np.ascontiguousarray(z, dtype="<f8"), allow_pickle=False)
+    blob = gzip.compress(buf.getvalue(), compresslevel=6, mtime=0)
+    return blob, hashlib.sha256(blob).hexdigest()
+
+
+def decode_grid(blob: bytes) -> np.ndarray:
+    return np.load(io.BytesIO(gzip.decompress(blob)), allow_pickle=False)
+
+
 def project_manifest(project: Project) -> dict:
     """Format-independent JSON description of a project (also used by web)."""
     return {
@@ -178,6 +225,12 @@ def project_manifest(project: Project) -> dict:
             }
             for d in project.datasets.values()
         ],
+        "grids": [
+            {"id": g.id, "name": g.name, "crs": g.crs, "geometry": g.geometry.to_dict(),
+             "method": (g.metadata or {}).get("method")}
+            for g in project.grids.values()
+        ],
+        "maps": [{"id": m.id, "name": m.name} for m in project.maps.values()],
     }
 
 
@@ -230,7 +283,7 @@ def read_header(path: str | Path) -> dict:
 
 
 def _write_db(conn: sqlite3.Connection, project: Project, revision: int) -> None:
-    conn.executescript(SCHEMA_V1)
+    conn.executescript(SCHEMA)
     now = utc_now()
     meta = {
         "format_name": FORMAT_NAME,
@@ -256,6 +309,16 @@ def _write_db(conn: sqlite3.Connection, project: Project, revision: int) -> None
                 _json(ds.qc_report), _json(cols), ds.n_points, DATA_ENCODING, blob, sha,
             ),
         )
+    for pos, g in enumerate(project.grids.values()):
+        blob, sha = encode_grid(g.z)
+        conn.execute(
+            "INSERT INTO grids VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (g.id, pos, g.name, g.crs, g.xy_units, g.z_units, g.z_label,
+             _json(g.geometry.to_dict()), _json(g.metadata), g.notes, GRID_ENCODING, blob, sha),
+        )
+    for pos, mp in enumerate(project.maps.values()):
+        conn.execute("INSERT INTO maps VALUES (?,?,?,?)",
+                     (mp.id, pos, mp.name, _json(mp.to_dict())))
     conn.executemany(
         "INSERT INTO history(timestamp, action, details, app_version) VALUES (?,?,?,?)",
         [(h.timestamp, h.action, _json(h.details), h.app_version) for h in project.history],
@@ -415,11 +478,32 @@ def load_project(path: str | Path, *, verify: bool = True) -> Project:
                 z_label=lab.get("z", "Z"), id=did, kind=kind, created=created, notes=notes,
             )
             proj.datasets[did] = ds
+        for (gid, name, crs, xyu, zu, zl, geom, md, notes, enc, blob, sha) in conn.execute(
+            "SELECT id, name, crs, xy_units, z_units, z_label, geometry, metadata, notes, "
+            "data_encoding, data, data_sha256 FROM grids ORDER BY position"
+        ).fetchall():
+            if enc != GRID_ENCODING:
+                raise ProjectFormatError(f"Grid {name!r}: unsupported data encoding {enc!r}")
+            if verify and hashlib.sha256(blob).hexdigest() != sha:
+                raise ProjectIntegrityError(f"Grid {name!r} failed checksum verification")
+            geometry = GridGeometry.from_dict(json.loads(geom))
+            z = decode_grid(blob)
+            if z.shape != geometry.shape:
+                raise ProjectIntegrityError(f"Grid {name!r}: data shape does not match geometry")
+            proj.grids[gid] = Grid(geometry, z, name=name, crs=crs, xy_units=xyu, z_units=zu,
+                                   z_label=zl, metadata=json.loads(md), id=gid, notes=notes)
+        for mid, name, doc in conn.execute(
+            "SELECT id, name, document FROM maps ORDER BY position"
+        ).fetchall():
+            mp = MapDocument.from_dict(json.loads(doc))
+            mp.id, mp.name = mid, name
+            proj.maps[mid] = mp
         for ts, action, details, appv in conn.execute(
             "SELECT timestamp, action, details, app_version FROM history ORDER BY id"
         ):
             proj.history.append(HistoryEntry(ts, action, json.loads(details), appv))
-    except (sqlite3.DatabaseError, KeyError, TypeError, json.JSONDecodeError) as exc:
+    except (sqlite3.DatabaseError, KeyError, TypeError, ValueError, json.JSONDecodeError,
+            GriddingError, MapError) as exc:
         raise ProjectFormatError(f"Project file is damaged or incomplete: {exc}") from exc
     finally:
         conn.close()
@@ -442,4 +526,10 @@ def verify_project_file(path: str | Path) -> list[str]:
     results.append("SQLite integrity check: ok")
     for d in proj.datasets.values():
         results.append(f"Dataset '{d.name}': {d.n_points} rows, checksum ok")
+    for g in proj.grids.values():
+        results.append(f"Grid '{g.name}': {g.geometry.nx} x {g.geometry.ny} nodes, checksum ok")
+    for m in proj.maps.values():
+        missing = [i for i in m.referenced_ids() if proj.item(i) is None]
+        results.append(f"Map '{m.name}': {len(m.layers)} layer(s)" +
+                       (f", {len(missing)} missing data source(s)" if missing else ", sources ok"))
     return results
