@@ -1,0 +1,37 @@
+# Exact versions used by the Windows package build (windows-package workflow).
+# Taken from the green build of commit 67e44e4 (run 44710073789, Python 3.12.10).
+# The build installs requirements.txt with these constraints, so a release
+# rebuilt from the same commit uses the same libraries. Update deliberately,
+# in a commit of its own, and re-run the tests and the package build.
+PySide6==6.10.3
+PySide6_Addons==6.10.3
+PySide6_Essentials==6.10.3
+shiboken6==6.10.3
+affine==3.0.1
+altgraph==0.17.5
+attrs==26.1.0
+certifi==2026.10.23
+contourpy==1.4.0
+cycler==0.12.1
+et-xmlfile==2.0.0
+fonttools==4.68.0
+kiwisolver==1.5.1
+matplotlib==3.11.2
+numpy==2.5.5
+openpyxl==3.1.5
+packaging==26.3
+pandas==3.1.1
+pefile==2024.8.26
+pillow==13.0.0
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10
+pyogrio==0.13.0
+pyparsing==3.3.3
+pyproj==3.8.0
+python-dateutil==4.0.0
+pywin32-ctypes==0.2.3
+rasterio==1.5.2
+scipy==1.18.1
+setuptools==84.2.1
+shapely==2.2.0
+tzdata==2026.6

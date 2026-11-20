@@ -12,7 +12,9 @@ $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
 python -m pip install --upgrade pip
-pip install -r requirements.txt "pyinstaller>=6.10,<7" "pillow>=10"
+pip install -r requirements.txt "pyinstaller>=6.10,<7" "pillow>=10" -c packaging\windows-constraints.txt
+if ($LASTEXITCODE -ne 0) { throw "dependency installation failed" }
+Write-Host "Installed packages:"; pip freeze
 $version = python -c "import geohydro; print(geohydro.__version__)"
 Write-Host "Building GeoHydro Pro $version"
 
