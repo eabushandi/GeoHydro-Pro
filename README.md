@@ -67,6 +67,48 @@ docs/                architecture, project format, import methodology, checklist
 web/ licensing/ payments/ reports/ website/ deployment/ database/   planned (README only)
 ```
 
+## Dependencies
+
+| Package | Purpose | Constraint |
+|---|---|---|
+| PySide6 (Qt 6.8 LTS) | desktop user interface | >=6.8, <6.11 |
+| NumPy | numerical arrays | >=1.26, <3 |
+| pandas | tabular data | >=2.1, <4 |
+| SciPy | statistics, KD-trees, graph components | >=1.11, <2 |
+| openpyxl | XLSX reading | >=3.1, <4 |
+| PyProj (PROJ) | coordinate reference systems and transformations | >=3.6, <4 |
+| Matplotlib | point previews (Qt backend) | >=3.8, <4 |
+| pytest, pytest-qt, Pillow | tests and screenshots (development only) | see `requirements-dev.txt` |
+
+Verified versions and platform notes: [docs/INSTALL.md](docs/INSTALL.md). GDAL, Rasterio,
+GeoPandas, PyKrige, PyVista/VTK, FastAPI and the React/Three.js/MapLibre web stack are
+introduced in the phases that need them.
+
+## Platform status
+
+* Linux: tests and offscreen application runs verified.
+* Windows: automated tests run on GitHub Actions `windows-2022` (Windows Server 2022) and
+  `windows-2025` (Windows Server 2025, the Windows 11 24H2 code base). See the latest run
+  under *Actions*. Server images are strong evidence but are not desktop Windows 10/11; an
+  interactive check on real Windows 10 and Windows 11 machines is still required before
+  compatibility is declared.
+
+## Development roadmap
+
+| Phase | Scope | Status |
+|---|---|---|
+| 1 Foundation | architecture, desktop shell, project format, CSV/XLSX/XYZ import, preview, QC | **complete (v0.1.0)** |
+| 2 Core mapping | gridding (IDW, Ordinary/Universal Kriging, Minimum Curvature, Natural/Nearest Neighbour, triangulation, RBF), variograms, cross-validation, contour / filled contour / colour relief / post maps, layout and export | planned |
+| 3 3D and terrain | DEM/raster import, 3D surfaces (PyVista/VTK), hillshade, slope, aspect, curvature, profiles, cross-sections, volumes | planned |
+| 4 Hydrology | DEM conditioning, D8, flow accumulation, streams, watersheds, catchment statistics | planned |
+| 5 Coastal | shorelines, baselines, transects, EPR, LRR, NSM, SCE (DSAS-compatible calculations) | planned |
+| 6 Advanced engineering | flood susceptibility screening, stormwater, groundwater and water quality, reports | planned |
+| 7 Commercial platform | web application, accounts, cloud sync, licensing, subscriptions, payments, admin, website | planned |
+| 8 Production release | validation campaign, security and performance testing, Windows installer, deployment | planned |
+
+Each phase ends with working code, tests, screenshots, an updated feature checklist, known
+limitations and next priorities.
+
 ## Documentation
 
 * [Installation](docs/INSTALL.md)

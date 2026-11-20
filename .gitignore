@@ -1,12 +1,111 @@
+# ---------------------------------------------------------------------------
+# GeoHydro Pro .gitignore - Python desktop (Windows/Linux/macOS) + planned web
+# ---------------------------------------------------------------------------
+
+# --- Secrets and local configuration (never commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*.jks
+*.keystore
+secrets/
+credentials*.json
+service-account*.json
+*.secret
+*.license.key
+.npmrc
+.pypirc
+
+# --- Python ---
 __pycache__/
 *.py[cod]
-.venv*/
-venv/
-.env
+*$py.class
+*.so
+*.pyd
+.Python
 *.egg-info/
+*.egg
+.eggs/
 build/
 dist/
+wheels/
+pip-wheel-metadata/
+.installed.cfg
+MANIFEST
+
+# --- Virtual environments ---
+.venv*/
+venv/
+env/
+ENV/
+.conda/
+
+# --- Tests, coverage, type checking, linters ---
 .pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+junit*.xml
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.hypothesis/
+
+# --- Packaging / installers (Windows) ---
+*.spec.bak
+*.msi
+*.msix
+*.exe
+installer/output/
+pyinstaller-build/
+
+# --- GeoHydro Pro runtime artefacts ---
 *.ghproj.bak
+.*.ghproj.*.tmp
 .*.tmp
 /screenshots/_tmp/
+/user_projects/
+/logs/
+*.log
+
+# --- Large / local geospatial working data (sample data is tracked explicitly) ---
+/data/
+*.tif.aux.xml
+*.ovr
+
+# --- Web frontend (planned: React/TypeScript/Vite) ---
+node_modules/
+web/frontend/dist/
+web/frontend/.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Databases created at runtime ---
+*.sqlite3
+*.db
+!samples/**/*.ghproj
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Editors and operating systems ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

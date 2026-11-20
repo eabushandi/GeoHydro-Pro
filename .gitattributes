@@ -1,0 +1,9 @@
+# Normalise text files; keep sample data byte-identical on every platform
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+samples/data/** -text
+*.ghproj binary
+*.xlsx binary
+*.png binary
+*.bundle binary
