@@ -87,7 +87,8 @@ RIBBON_LABELS = {
     "reports.xlsx": "Excel Report", "edit.undo": "Undo", "edit.redo": "Redo",
     "grid.math": "Calculator", "grid_filter": "Filter", "grid_blank": "Blank", "grid_clip": "Clip",
     "map.vector": "Vector / Image", "map.density": "Density", "terrain.aspect": "Aspect",
-    "terrain.curvature": "Curvature", "vector_to_points": "To Points",
+    "terrain.curvature": "Curvature", "vector_to_points": "To Points", "vector_process": "Process",
+    "vector_export": "Export Vector",
 }
 
 
@@ -297,7 +298,7 @@ class MainWindow(GISMixin, GridMapMixin, QMainWindow):
             view.addSeparator() if k is None else view.addAction(a[k])
         menu("&Project", ["project_props", "history", "validate", None, "cloud.sync"])
         menu("&Data", ["import", None, "table", "preview", "stats", "qc", None, "rename", "export_csv",
-                       "remove", None, "data.import.vector", "data.import.raster", "vector_to_points",
+                       "remove", None, "data.import.vector", "data.import.raster", "vector_process", "vector_to_points",
                        "vector_export", "vector_rename", "vector_remove", "image_rename", "image_remove",
                        None, "data.import.netcdf", "data.import.lidar"])
         menu("&Grid", ["grid_data", None, "grid.idw", "grid.ok", "grid.uk", "grid.mincurv",
@@ -377,7 +378,7 @@ class MainWindow(GISMixin, GridMapMixin, QMainWindow):
                       ("Inspect", ["project_props", "history", "validate"]), ("Tools", ["crs_tool"])])
         page("Data", [("Import", ["import", "data.import.vector", "data.import.raster"]), ("Dataset", ["table", "preview", "stats", "qc", "export_csv",
                                                            "remove"]),
-                      ("GIS layers", ["vector_to_points", "vector_export"]),
+                      ("GIS layers", ["vector_process", "vector_to_points", "vector_export"]),
                       ("Other formats", ["data.import.netcdf", "data.import.lidar"])])
         page("Grid", [("Grid", ["grid_data", "grid_open", "grid_export"]),
                       ("Methods", ["grid.idw", "grid.ok", "grid.mincurv", "grid.natnb", "grid.tin",
@@ -462,7 +463,7 @@ class MainWindow(GISMixin, GridMapMixin, QMainWindow):
             self.actions[k].setEnabled(bool(p.grids))
         self.actions["grid_blank"].setEnabled(bool(p.grids) and any(
             v.family == "polygon" for v in p.vectors.values()))
-        for k in ("vector_rename", "vector_remove", "vector_export"):
+        for k in ("vector_rename", "vector_remove", "vector_export", "vector_process"):
             self.actions[k].setEnabled(bool(p.vectors))
         self.actions["vector_to_points"].setEnabled(any(v.family == "point" for v in p.vectors.values()))
         for k in ("image_rename", "image_remove"):

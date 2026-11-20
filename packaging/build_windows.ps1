@@ -47,3 +47,5 @@ if ($iscc) {
   Write-Warning "Inno Setup 6 not found: installer not built (the zip is still usable)."
 }
 Get-ChildItem dist -File | Format-Table Name, Length
+$size = (Get-ChildItem dist\GeoHydroPro -Recurse -File | Measure-Object -Property Length -Sum).Sum
+Write-Host ("Application folder size: {0:N0} MB" -f ($size / 1MB))

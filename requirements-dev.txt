@@ -4,3 +4,5 @@ pytest-qt>=4.4
 pillow>=10
 # Independent reference implementation used only by the Kriging comparison tests
 pykrige==1.7.3
+# Independent reference implementation used only by the kernel-density comparison tests
+scikit-learn>=1.5,<2

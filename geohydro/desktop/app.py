@@ -1,6 +1,6 @@
 """Desktop application entry point.
 
-    python -m geohydro.desktop [project.ghproj] [--sample]
+    python -m geohydro.desktop [project.ghproj] [--sample | --gis-sample]
     python -m geohydro.desktop --selftest [--report FILE]
 """
 
@@ -40,6 +40,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="geohydro-pro", description=f"{APP_NAME} desktop")
     parser.add_argument("project", nargs="?", help="project file (.ghproj) to open")
     parser.add_argument("--sample", action="store_true", help="open the bundled sample project")
+    parser.add_argument("--gis-sample", action="store_true",
+                        help="open the bundled GIS demonstration project")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     parser.add_argument("--selftest", action="store_true",
                         help="check the installation without user interaction and exit")
@@ -57,6 +59,9 @@ def main(argv=None) -> int:
     win.show()
     if args.project:
         win.open_project(args.project)
+    elif args.gis_sample:
+        from geohydro.paths import GIS_SAMPLE_PROJECT
+        win.open_sample_project(GIS_SAMPLE_PROJECT)
     elif args.sample:
         win.open_sample_project()
     return app.exec()

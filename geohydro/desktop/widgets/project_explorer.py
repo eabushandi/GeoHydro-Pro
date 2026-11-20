@@ -193,6 +193,7 @@ class ProjectExplorer(QTreeWidget):
             ("vector.open", "Open", "vector"),
             ("vector.map", "Add to Map", "map"),
             ("vector.points", "Convert to Point Dataset…", "points"),
+            ("vector.process", "Vector Processing…", "vector"),
             ("vector.rename", "Rename…", None),
             ("vector.export", "Export…", "export"),
             (None, None, None),

@@ -151,24 +151,26 @@ arrow points straight up.
   message and leave the map unchanged.
 
 The layout editor in Phase 2 is this page view with property editing and
-draggable scale bar and north arrow. A free-form layout editor (multiple map
-frames, inset maps, legends for post symbols, logos and text boxes placed
-anywhere on the page) is planned.
+draggable scale bar and north arrow. Phase 3 added an inset location map, a
+legend for contour, post, vector and image layers, a logo and text boxes (see
+`docs/GIS.md` §4). Several independent map frames on one page are still
+planned.
 
 ## 6. Export
 
-`export_map` writes PNG, JPEG, SVG or PDF. The page size is exact (for
+`export_map` writes PNG, JPEG, TIFF (added in Phase 3), SVG or PDF. The page size is exact (for
 example A4 landscape at 300 dpi is 3508 × 2480 pixels, within one pixel of
 rounding). Raster resolution is 50–1200 dpi (default 300). SVG and PDF are
 vector output (the colour relief layer is embedded as an image). An existing
 file is never overwritten unless the user confirms it in the save dialog. Each
 export is recorded in the project's outputs and history.
 
-## 7. Planned (not in Phase 2)
+## 7. Planned
 
-Vector, base (image), point-density and raster-layer maps; legends for post
-symbols and line layers; free-form layout with several map frames; on-map
-annotation and drawing tools; coordinate grids in a second CRS; map templates.
+Vector, base (image), point-density and raster-layer maps, post and line
+legends, and a latitude/longitude graticule were added in Phase 3 (see
+`docs/GIS.md`). Still planned: several map frames on one page; interactive
+annotation and drawing tools; map templates.
 
 ## 8. Validation
 

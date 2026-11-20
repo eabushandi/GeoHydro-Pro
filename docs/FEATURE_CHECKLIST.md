@@ -62,7 +62,7 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | i18n architecture (RTL switch, translator hook) | 🟡 hooks only; no translations |
 | Web application foundation (roadmap Phase 1 item) | ⬜ not started — out of this thread's scope |
 | CI workflow (Windows + Linux) | ✅ 9/9 jobs pass (windows-2022, windows-2025, ubuntu-24.04 × Py 3.11–3.13) |
-| Undo / redo | ⬜ moved to Phase 3 (not done in Phase 2) |
+| Undo / redo | ✅ delivered in Phase 3 (see below) |
 
 ## Phase 2 — Core Mapping (section 28)
 
@@ -90,26 +90,62 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | Palettes (uniform, conventional, diverging; reversible) | ✅ | |
 | Legend (colour bar), scale bar, north arrow (true north), coordinate grid, titles | ✅ | convergence sign tested; geographic scale bar labelled with its latitude |
 | Transparency, layer order, multi-layer maps | ✅ | |
-| Map layout | 🟡 | page view with page size/orientation/margins, property editing, draggable scale bar and north arrow. Free-form layout (several frames, insets, logos, text boxes) planned |
+| Map layout | 🟡 | page view with page size/orientation/margins, property editing, draggable scale bar and north arrow. Phase 3 added inset, logo and text boxes; several independent map frames on one page are still planned |
 | Annotations | 🟡 | stored and drawn; no interactive annotation tool yet |
 | Export PNG, JPEG, SVG, PDF | ✅ | exact page size; never overwrites silently |
 | Project format v2 (grids, maps) with v1 migration | ✅ | `test_project_storage.py` |
-| Grid math, vector maps, base maps, point-density maps, raster-layer maps | ⬜ | moved to Phase 3 |
-| Vector import (shapefile, GeoJSON …) | ⬜ | moved to Phase 3 |
-| Undo / redo | ⬜ | moved to Phase 3 |
+| Grid math, vector maps, base maps, point-density maps, raster-layer maps | ✅ | delivered in Phase 3 (see below) |
+| Vector import (shapefile, GeoJSON …) | ✅ | delivered in Phase 3 |
+| Undo / redo | ✅ | delivered in Phase 3 |
 | Windows CI | ✅ | 9/9 jobs, 179/179 tests each (run 44677653777) |
+| Interactive check on desktop Windows 10/11 | ⬜ | CI runs on Windows Server images only |
+
+## Phase 3 — Advanced GIS and Spatial Analysis (v0.3.0)
+
+| Item | Status | Evidence / note |
+|---|---|---|
+| Grid calculator (grids A–D, math functions, `where`, `isblank`, `fillblank`, resampling to a common geometry) | ✅ | safe expression parser, no `eval`; `test_gridmath.py`; `docs/GRID_MATH.md` §1 |
+| Grid filters (mean, median, min, max, range, std, high-pass, Gaussian; blank-aware), blanking by polygon, clipping | ✅ | mean filter equals SciPy `uniform_filter` in the interior |
+| Slope, aspect, hillshade (Horn) | ✅ | match `gdaldem` (GDAL 3.8.4 fixtures): 3.1e-5°, 0.0022°, ≤ 0.51/255 |
+| Curvature (Zevenbergen–Thorne: profile, plan, total) | ✅ | exact on a paraboloid |
+| Profiles along typed vertices or a line feature, CSV export | ✅ | `test_gridmath.py`, `test_gui_phase3.py` |
+| Volumes: trapezoidal, Simpson 1/3, Simpson 3/8; cut/fill against a level or grid | ✅ | analytic paraboloid/plane tests; Simpson 3/8 accuracy caveat documented |
+| Vector import: Shapefile (and zipped), GeoJSON, GeoPackage, KML/KMZ, FlatGeobuf | ✅ | `test_vector.py` round trips; CRS never guessed |
+| Vector import: GML, DXF, GPX, MapInfo | 🟡 | offered as read-only through GDAL; **not covered by tests** |
+| Vector export (Shapefile, GeoJSON, GeoPackage, KML, FlatGeobuf) | ✅ | round-trip tested |
+| Vector processing: reproject, buffer, clip, dissolve, area/length fields, repair | ✅ | each creates a new layer, logged and undoable |
+| Geodesic area/length in geographic CRSs | ✅ | analytic equator length < 1e-12; area vs LAEA < 1e-6 |
+| Vector points → point dataset (Z from field or 3-D coordinate) | ✅ | QC report for rejected rows |
+| Raster import as grid (GeoTIFF and GDAL formats; NoData, scale/offset, south-up, rotated, reprojection, decimation) | ✅ | `test_raster.py` (17 tests) |
+| Raster import as base-map image (RGB, RGBA, paletted, 16-bit stretch) | ✅ | display only; never used in calculations |
+| GeoTIFF export of grids | ✅ | DEFLATE, NaN NoData, CRS |
+| Point density: KDE (5 kernels, bandwidth rules), point counts, weights, per km² | ✅ | matches scikit-learn to 7e-15 (compact kernels) / 1.1e-6 (Gaussian) |
+| Vector, raster and point integration on one map | ✅ | on-the-fly reprojection to the map CRS, with a note on the map |
+| Undo / redo (30 steps, imports, edits, grid math, map edits) | ✅ | `test_undo.py`, `test_gui_phase3.py` |
+| Multiple layers: visibility, order, opacity, symbology (single, categorized, graduated) | ✅ | `test_mapping_gis.py` |
+| Legend, north arrow, scale bar, coordinate grid, lat/lon graticule | ✅ | |
+| Inset location map, text boxes, logo image | ✅ | |
+| Several independent map frames on one page | ⬜ | planned |
+| Interactive annotation drawing tool | ⬜ | planned (text boxes are placed by position) |
+| Publication export: PNG, JPEG, TIFF (LZW, dpi tag), PDF and SVG with embedded TrueType fonts | ✅ | TIFF and PDF font embedding tested |
+| Project format v3 (vectors, images) with v1/v2 migration | ✅ | `test_project_storage.py` |
+| Scientific documentation (equations, assumptions, limitations, validation) | ✅ | `docs/GRID_MATH.md`, `docs/GIS.md` |
+| Sample GIS datasets and GIS demo project | ✅ | synthetic, seed 20261120; self-test opens and exports it |
+| Windows installer, portable zip, frozen self-test, silent install/uninstall | ✅ | *windows-package* workflow (Windows Server 2022) |
+| Installation and troubleshooting guide | ✅ | `docs/WINDOWS_INSTALL.md` |
+| Code signing | ⬜ | needs a paid certificate; planned for production |
+| Web tile base maps (OpenStreetMap, satellite) | ⬜ | planned (network access and licence terms) |
+| LAS/LAZ point clouds, 3-D surfaces | ⬜ | moved to Phase 4 |
 | Interactive check on desktop Windows 10/11 | ⬜ | CI runs on Windows Server images only |
 
 ## Later phases (all ⬜ planned, visible but disabled in the UI)
 
-* Phase 3: grid math, vector/base/point-density/raster maps, vector import, undo/redo,
-  3D surfaces and point clouds, raster/DEM import, LAS/LAZ, slope, aspect,
-  hillshade, curvature, profiles, cut/fill volumes.
-* Phase 4: DEM conditioning, D8, flow accumulation, streams, watersheds.
+* Phase 4: 3-D surfaces and point clouds, LAS/LAZ, DEM conditioning, D8, flow
+  accumulation, streams, watersheds.
 * Phase 5: shoreline baselines/transects, EPR, LRR, NSM, SCE, beach profiles.
 * Phase 6: flood susceptibility (screening), stormwater, groundwater and water-quality
   surfaces, NetCDF, PDF/Excel reports.
 * Phase 7: accounts, cloud sync, licensing, subscriptions, payments, admin dashboard,
   website, web application.
-* Phase 8: validation campaign, security/performance testing, Windows installer, cloud
+* Phase 8: validation campaign, security/performance testing, code signing, cloud
   deployment, Arabic interface.

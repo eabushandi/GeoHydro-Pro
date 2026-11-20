@@ -46,6 +46,8 @@ class GISMixin:
         A("vector_export", "Export Vector Layer…", lambda: self.export_vector(), "export")
         A("vector_to_points", "Vector Points to Point Dataset…", lambda: self.vector_to_points(),
           "points", tip="Use a point layer (e.g. boreholes) for gridding, post maps and statistics")
+        A("vector_process", "Vector Processing…", lambda: self.vector_process(), "vector",
+          tip="Reproject, buffer, clip, dissolve, add area/length fields or repair a vector layer")
         A("image_rename", "Rename Image…", lambda: self.rename_image())
         A("image_remove", "Remove Image…", lambda: self.remove_image(), "delete")
         A("edit.redo", "Redo", lambda: self.redo(), None, "Ctrl+Y", tip="Redo the undone action")
@@ -416,6 +418,85 @@ class GISMixin:
         self._refresh_all()
         self.open_dataset(new.id)
         return new
+
+    VECTOR_OPS = (("reproject", "Reproject to another CRS"),
+                  ("buffer", "Buffer by a distance"),
+                  ("clip", "Clip to the polygons of another layer"),
+                  ("dissolve", "Dissolve (merge features)"),
+                  ("measures", "Add area / length fields"),
+                  ("repair", "Repair invalid geometries"))
+
+    def vector_process(self, vector_id=None, values=None):
+        from geohydro.engine.crs import crs_storage_string, resolve_crs
+        from geohydro.engine.vector import ops
+        p = self.project
+        if not p.vectors:
+            self._error("Vector processing", GeoHydroError("Import a vector layer first."))
+            return None
+        vid = vector_id if vector_id in p.vectors else (self.selected_item("vector")
+                                                        or next(iter(p.vectors)))
+        layers = [(v.id, v.name) for v in p.vectors.values()]
+        polys = [(v.id, v.name) for v in p.vectors.values() if v.family == "polygon"]
+        fields_of = list(p.vectors[vid].attributes.columns)
+        crs_default = p.default_crs or "EPSG:4326"
+        fields = [Field("vector_id", "Layer", "choice", vid, layers),
+                  Field("op", "Operation", "choice", "reproject", list(self.VECTOR_OPS)),
+                  Field("crs", "Target CRS (reproject)", "text", crs_default,
+                        tip="EPSG code, e.g. EPSG:32639"),
+                  Field("distance", "Distance (buffer, layer units)", "float", 100.0,
+                        decimals=3),
+                  Field("mask_id", "Mask layer (clip)", "choice", polys[0][0] if polys else NONE,
+                        polys or [(NONE, "(no polygon layer)")]),
+                  Field("by", "Dissolve by field", "choice", NONE,
+                        [(NONE, "(merge all)")] + [(c, c) for c in fields_of])]
+        v = self._ask("Vector processing", fields, values, note=(
+            "The result is a new layer; the original is unchanged. Buffering refuses geographic "
+            "(degree) coordinates. Clipped features keep their attributes unchanged (they are "
+            "not apportioned by area). Measures are planar in projected CRSs and geodesic "
+            "(WGS 84) in geographic CRSs."))
+        if v is None:
+            return None
+        src = p.vectors[v["vector_id"]]
+        op = v["op"]
+
+        def work():
+            if op == "reproject":
+                info = resolve_crs(v["crs"])
+                if info is None:
+                    raise GeoHydroError("Choose a target CRS.")
+                return ops.reproject(src, crs_storage_string(info)), {"to": v["crs"]}
+            if op == "buffer":
+                return ops.buffer(src, float(v["distance"])), {"distance": v["distance"]}
+            if op == "clip":
+                if v["mask_id"] not in p.vectors:
+                    raise GeoHydroError("Import a polygon layer to clip with.")
+                mask_layer = p.vectors[v["mask_id"]]
+                if mask_layer.crs and src.crs and mask_layer.crs != src.crs:
+                    mask_layer = ops.reproject(mask_layer, src.crs)
+                return ops.clip(src, ops.polygon_union(mask_layer)), {"mask": v["mask_id"]}
+            if op == "dissolve":
+                by = None if v["by"] in (None, NONE) else v["by"]
+                return ops.dissolve(src, by), {"by": by}
+            if op == "measures":
+                out = ops.add_measures(src)
+                out.name = f"{src.name} (measures)"
+                return out, {}
+            if op == "repair":
+                out, n = ops.repair(src)
+                return out, {"repaired": n}
+            raise GeoHydroError(f"Unknown operation {op}.")
+
+        res = self._run("Vector processing", work)
+        if res is None:
+            return None
+        out, details = res
+        p.add_vector(out, action="vector.create", operation=op, source_id=src.id, **details)
+        self.console.success(f"Vector layer '{out.name}' created ({op}): {out.n_features:,} "
+                             "features.")
+        self._mark_dirty()
+        self._refresh_all()
+        self.open_vector(out.id)
+        return out
 
     # ================================================================ grid math
     def grid_calculator(self, values=None):
@@ -887,6 +968,7 @@ class GISMixin:
             "vector.open": lambda: self.open_vector(ident),
             "vector.map": lambda: self.add_gis_layer(None, ident),
             "vector.points": lambda: self.vector_to_points(ident),
+            "vector.process": lambda: self.vector_process(ident),
             "vector.rename": lambda: self.rename_vector(ident),
             "vector.export": lambda: self.export_vector(ident),
             "vector.remove": lambda: self.remove_vector(ident),

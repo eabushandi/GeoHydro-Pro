@@ -46,6 +46,7 @@ Source: "..\dist\GeoHydroPro\*"; DestDir: "{app}"; Flags: ignoreversion recurses
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autoprograms}\{#AppName} (open sample project)"; Filename: "{app}\{#AppExe}"; Parameters: "--sample"
+Name: "{autoprograms}\{#AppName} (open GIS demo project)"; Filename: "{app}\{#AppExe}"; Parameters: "--gis-sample"
 Name: "{autoprograms}\{#AppName} installation self-test"; Filename: "{app}\{#AppExe}"; Parameters: "--selftest --report ""{userdocs}\GeoHydroPro-selftest.txt"""
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 

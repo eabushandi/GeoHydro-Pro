@@ -56,6 +56,28 @@ def test_import_vector_all_sample_formats(win, gis):
     assert win.actions["vector_to_points"].isEnabled()
 
 
+def test_vector_processing_commands(win, gis):
+    lu = win.import_vector(gis / "land_use.gpkg")
+    site = win.import_vector(gis / "site_boundary.geojson")           # WGS 84
+    assert win.vector_process(site.id, {"op": "buffer", "distance": 10}) is None
+    assert "projected CRS" in win.console.plain_text()
+    utm = win.vector_process(site.id, {"op": "reproject", "crs": "EPSG:32639"})
+    assert utm.crs == "EPSG:32639" and utm.xy_units == "m"
+    buf = win.vector_process(utm.id, {"op": "buffer", "distance": 200.0})
+    assert buf.geometry[0].area > utm.geometry[0].area
+    clipped = win.vector_process(lu.id, {"op": "clip", "mask_id": site.id})   # mask reprojected
+    assert 0 < clipped.n_features <= lu.n_features
+    diss = win.vector_process(lu.id, {"op": "dissolve", "by": "class"})
+    assert diss.n_features == lu.attributes["class"].nunique()
+    meas = win.vector_process(site.id, {"op": "measures"})
+    assert "area_m2" in meas.attributes                                 # geodesic on WGS 84
+    rep = win.vector_process(lu.id, {"op": "repair"})
+    assert rep is not None
+    assert win.project.history[-1].action == "vector.create"
+    assert win.project.history[-1].details["operation"] == "repair"
+    assert win.undo() and rep.id not in win.project.vectors
+
+
 def test_import_vector_error_is_reported(win, tmp_path):
     bad = tmp_path / "bad.geojson"
     bad.write_text("not json")

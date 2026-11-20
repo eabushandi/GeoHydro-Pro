@@ -8,14 +8,16 @@
 | Linux (Ubuntu 24.04, x86-64) | Verified: development environment, tests and offscreen screenshots. |
 | macOS | Expected to work (all dependencies publish macOS wheels); not tested. |
 
-Packaged installers (PyInstaller, Start-menu entry, desktop shortcut, code signing) are
-planned for Phase 8. Phases 1 and 2 run from source.
+A standalone Windows installer and portable zip are built by CI from Phase 3 on. Installing
+them, verifying the installation and troubleshooting are covered in
+[WINDOWS_INSTALL.md](WINDOWS_INSTALL.md). Code signing is planned for the production release.
+This page covers running from source.
 
 ## Requirements
 
 * Python 3.11, 3.12 or 3.13 (64-bit). Developed and tested on **Python 3.13.18**.
-* No GDAL is required in Phase 1 (raster/vector formats arrive in later phases; on Windows
-  they will be provided through wheels that bundle GDAL, such as rasterio/pyogrio).
+* No separate GDAL installation is needed. The rasterio and pyogrio wheels bundle GDAL, and
+  shapely bundles GEOS, on Windows, Linux and macOS.
 
 ### Dependency versions
 
@@ -28,6 +30,10 @@ planned for Phase 8. Phases 1 and 2 run from source.
 | openpyxl | >=3.1, <4 | 3.1.5 |
 | pyproj | >=3.6, <4 | 3.8.0 (PROJ 9.8.1) |
 | matplotlib | >=3.8, <4 | 3.11.2 |
+| rasterio | >=1.4, <2 | 1.5.2 (GDAL 3.12.2) |
+| pyogrio | >=0.9, <1 | 0.13.0 |
+| shapely | >=2.0, <3 | 2.2.0 |
+| scikit-learn (dev, kernel-density reference tests) | >=1.5, <2 | 1.9.1 |
 | pytest / pytest-qt (dev) | >=8 / >=4.4 | 9.2.0 / 4.5.0 |
 | pykrige (dev, Kriging reference tests) | ==1.7.3 | 1.7.3 (wheels for Windows, Python 3.11–3.13) |
 
@@ -65,7 +71,8 @@ Other ways to start: `python -m geohydro.desktop [project.ghproj]` or `python ru
 ## Running the tests
 
 ```bash
-python -m pytest            # all tests (179 at v0.2.0)
+python -m pytest            # all tests (318 at v0.3.0)
+geohydro-pro --selftest     # installation self-test (same checks as the Windows build)
 python tools/validate_gridding.py    # reproduce the gridding validation table
 python -m pytest tests/test_gui.py   # GUI tests only (offscreen)
 ```

@@ -1,5 +1,221 @@
 # Test results
 
+## Phase 3 (v0.3.0) — local run
+
+Run: 2026-11-20, Linux (Ubuntu 24.04, x86-64), Python 3.13.18, Qt offscreen platform.
+NumPy 2.5.5, pandas 3.1.1, SciPy 1.18.1, Matplotlib 3.11.2, PySide6 6.8.1, PyProj 3.8.0,
+rasterio 1.5.2 (GDAL 3.12.2), pyogrio 0.13.0, shapely 2.2.0. Reference libraries for
+comparison tests: PyKrige 1.7.3, scikit-learn 1.9.1, GDAL 3.8.4 command-line tools.
+
+**Result: 318 passed in 61.5 s** (0 failed, 0 skipped). All 179 Phase 1 and 2 tests are
+still present and pass; none was removed or weakened. Three existing tests were adapted to
+Phase 3 facts: the explorer test (Raster Images and Vector Layers are no longer "planned"),
+the capability-registry honesty test (Phase 3 items implemented, hydrology still planned),
+and the reader tests (they skip the new `samples/data/gis/` folder).
+
+| Test file | Tests | Passed | Note |
+|---|---|---|---|
+| `tests/test_density.py` | 15 | 15 | new |
+| `tests/test_gridding.py` | 22 | 22 | |
+| `tests/test_gridmath.py` | 40 | 40 | new |
+| `tests/test_gui.py` | 16 | 16 | |
+| `tests/test_gui_phase2.py` | 16 | 16 | |
+| `tests/test_gui_phase3.py` | 18 | 18 | new |
+| `tests/test_importer.py` | 9 | 9 | |
+| `tests/test_interpolation.py` | 37 | 37 | |
+| `tests/test_mapping.py` | 11 | 11 | |
+| `tests/test_mapping_gis.py` | 9 | 9 | new |
+| `tests/test_project_storage.py` | 24 | 24 | +4 (vectors, images, v2 → v3 migration) |
+| `tests/test_qc.py` | 18 | 18 | |
+| `tests/test_raster.py` | 17 | 17 | new |
+| `tests/test_readers.py` | 21 | 21 | |
+| `tests/test_statistics_crs_units.py` | 9 | 9 | |
+| `tests/test_undo.py` | 12 | 12 | new |
+| `tests/test_vector.py` | 24 | 24 | new |
+| **Total** | **318** | **318** | |
+
+Locally `test_matches_gdal_conversion_of_esri_ascii` ran against GDAL's `gdal_translate`.
+CI runners have no GDAL command-line tools, so that one test is skipped there.
+
+### Phase 3 numerical validation
+
+See `docs/GRID_MATH.md` §7 and `docs/GIS.md` §1.2 and §2.2 for the full tables.
+
+* Slope, aspect, hillshade against `gdaldem` (GDAL 3.8.4 fixtures, 61 × 41 DEM): max abs.
+  difference 3.1·10⁻⁵°, 0.0022°, ≤ 0.51 of 255.
+* Kernel density against scikit-learn `KernelDensity`: max relative difference 7·10⁻¹⁵
+  (compact kernels), 1.1·10⁻⁶ (Gaussian, 5σ truncation).
+* Volumes: trapezoidal and Simpson rules against analytic integrals (exact to 10⁻¹²–10⁻¹⁵);
+  cut/fill on an inclined plane exact.
+* Geodesic line length on the equator: relative error < 10⁻¹²; geodesic area against an
+  ellipsoidal equal-area projection: < 10⁻⁶.
+* Mean filter against SciPy `uniform_filter`: equal to round-off in the interior.
+
+### Phase 3 individual tests (new files and new storage tests)
+
+```
+tests/test_density.py::test_matches_scikit_learn[gaussian-gaussian-1e-05] PASSED
+tests/test_density.py::test_matches_scikit_learn[epanechnikov-epanechnikov-1e-12] PASSED
+tests/test_density.py::test_matches_scikit_learn[uniform-tophat-1e-12] PASSED
+tests/test_density.py::test_matches_scikit_learn[triangular-linear-1e-12] PASSED
+tests/test_density.py::test_kernels_integrate_to_one[quartic] PASSED
+tests/test_density.py::test_kernels_integrate_to_one[epanechnikov] PASSED
+tests/test_density.py::test_kernels_integrate_to_one[triangular] PASSED
+tests/test_density.py::test_kernels_integrate_to_one[uniform] PASSED
+tests/test_density.py::test_kernels_integrate_to_one[gaussian] PASSED
+tests/test_density.py::test_quartic_peak_and_integral PASSED
+tests/test_density.py::test_weights_probability_and_units PASSED
+tests/test_density.py::test_bandwidth_rules PASSED
+tests/test_density.py::test_geographic_refused_and_bad_points PASSED
+tests/test_density.py::test_point_count PASSED
+tests/test_density.py::test_vector_points_to_point_dataset PASSED
+tests/test_gridmath.py::test_calculator_arithmetic_and_provenance PASSED
+tests/test_gridmath.py::test_calculator_blanks_and_undefined_results_are_reported PASSED
+tests/test_gridmath.py::test_calculator_conditionals_and_functions PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[__import__('os').system('x')] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[A.__class__] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[open('f')] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[[A PASSED
+for PASSED
+A PASSED
+in PASSED
+B]] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[lambda: PASSED
+1] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[A PASSED
+if PASSED
+B PASSED
+else PASSED
+C] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions['text'] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[D[0]] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[exec('1')] PASSED
+tests/test_gridmath.py::test_calculator_rejects_unsafe_expressions[abs(x=A)] PASSED
+tests/test_gridmath.py::test_calculator_resamples_and_checks_crs PASSED
+tests/test_gridmath.py::test_resample_nearest_and_outside PASSED
+tests/test_gridmath.py::test_mean_filter_matches_uniform_filter_in_interior PASSED
+tests/test_gridmath.py::test_filters_on_plane_spike_and_blanks PASSED
+tests/test_gridmath.py::test_gaussian_filter_normalised_and_errors PASSED
+tests/test_gridmath.py::test_slope_matches_gdaldem PASSED
+tests/test_gridmath.py::test_aspect_matches_gdaldem PASSED
+tests/test_gridmath.py::test_hillshade_matches_gdaldem[hillshade_315_45.tif-315-45-1] PASSED
+tests/test_gridmath.py::test_hillshade_matches_gdaldem[hillshade_120_30_z2.tif-120-30-2] PASSED
+tests/test_gridmath.py::test_plane_slope_aspect_analytic[1-0-270] PASSED
+tests/test_gridmath.py::test_plane_slope_aspect_analytic[-1-0-90] PASSED
+tests/test_gridmath.py::test_plane_slope_aspect_analytic[0-1-180] PASSED
+tests/test_gridmath.py::test_plane_slope_aspect_analytic[0--1-0] PASSED
+tests/test_gridmath.py::test_plane_slope_aspect_analytic[1-1-225] PASSED
+tests/test_gridmath.py::test_plane_slope_aspect_analytic[-1--1-45] PASSED
+tests/test_gridmath.py::test_flat_aspect_blank_and_units PASSED
+tests/test_gridmath.py::test_geographic_slope_uses_ellipsoid PASSED
+tests/test_gridmath.py::test_curvature_paraboloid_exact PASSED
+tests/test_gridmath.py::test_plan_curvature_sign_on_a_peak PASSED
+tests/test_gridmath.py::test_profile_along_line PASSED
+tests/test_gridmath.py::test_weights_sum_and_exactness PASSED
+tests/test_gridmath.py::test_volume_rules_on_paraboloid PASSED
+tests/test_gridmath.py::test_cut_fill_plane_and_lower_grid PASSED
+tests/test_gridmath.py::test_volume_units_blanks_and_surface_area PASSED
+tests/test_gridmath.py::test_volume_geographic_cell_areas PASSED
+tests/test_gridmath.py::test_blank_inside_outside_with_hole_and_vector_layer PASSED
+tests/test_gridmath.py::test_blank_reprojects_layer_and_clip_extent PASSED
+tests/test_gui_phase3.py::test_phase3_capabilities_enabled PASSED
+tests/test_gui_phase3.py::test_import_vector_all_sample_formats PASSED
+tests/test_gui_phase3.py::test_vector_processing_commands PASSED
+tests/test_gui_phase3.py::test_import_vector_error_is_reported PASSED
+tests/test_gui_phase3.py::test_import_raster_as_grid_and_image PASSED
+tests/test_gui_phase3.py::test_import_raster_reprojected_to_project_crs PASSED
+tests/test_gui_phase3.py::test_grid_math_commands PASSED
+tests/test_gui_phase3.py::test_terrain_volume_profile PASSED
+tests/test_gui_phase3.py::test_point_density_and_vector_to_points PASSED
+tests/test_gui_phase3.py::test_gis_map_layers_and_properties PASSED
+tests/test_gui_phase3.py::test_map_export_tiff PASSED
+tests/test_gui_phase3.py::test_logo_from_file PASSED
+tests/test_gui_phase3.py::test_undo_redo_round_trip PASSED
+tests/test_gui_phase3.py::test_undo_resets_on_new_project PASSED
+tests/test_gui_phase3.py::test_vector_properties_and_crs_assignment PASSED
+tests/test_gui_phase3.py::test_save_and_reload_gis_project PASSED
+tests/test_gui_phase3.py::test_gis_demo_project_opens_and_renders PASSED
+tests/test_gui_phase3.py::test_param_dialog_values PASSED
+tests/test_mapping_gis.py::test_vector_and_image_layers_render PASSED
+tests/test_mapping_gis.py::test_symbology_colours_and_no_data PASSED
+tests/test_mapping_gis.py::test_classification PASSED
+tests/test_mapping_gis.py::test_inset_text_and_logo PASSED
+tests/test_mapping_gis.py::test_latlon_graticule_and_dms PASSED
+tests/test_mapping_gis.py::test_clear_below_masks_values PASSED
+tests/test_mapping_gis.py::test_tiff_and_pdf_export PASSED
+tests/test_mapping_gis.py::test_v2_document_gets_phase3_defaults PASSED
+tests/test_mapping_gis.py::test_wrong_source_kind_is_reported PASSED
+tests/test_raster.py::test_cell_centres_become_nodes_and_rows_flip PASSED
+tests/test_raster.py::test_geotiff_round_trip_exact PASSED
+tests/test_raster.py::test_geotiff_float32_option PASSED
+tests/test_raster.py::test_matches_gdal_conversion_of_esri_ascii PASSED
+tests/test_raster.py::test_nodata_and_mask PASSED
+tests/test_raster.py::test_scale_offset_applied PASSED
+tests/test_raster.py::test_south_up_raster PASSED
+tests/test_raster.py::test_rotated_raster_is_warped_with_warning PASSED
+tests/test_raster.py::test_reprojection_on_import PASSED
+tests/test_raster.py::test_decimation_block_average PASSED
+tests/test_raster.py::test_band_selection_and_errors PASSED
+tests/test_raster.py::test_no_crs_and_no_georeferencing_warn PASSED
+tests/test_raster.py::test_classify_and_rgb_image PASSED
+tests/test_raster.py::test_palette_image_and_transparency PASSED
+tests/test_raster.py::test_uint16_image_is_stretched PASSED
+tests/test_raster.py::test_image_downsampled_for_display PASSED
+tests/test_raster.py::test_reproject_image PASSED
+tests/test_undo.py::test_undo_redo_add_rename_remove PASSED
+tests/test_undo.py::test_restored_objects_are_independent_of_snapshots PASSED
+tests/test_undo.py::test_arrays_are_shared_not_copied PASSED
+tests/test_undo.py::test_map_edits_are_deep_copied PASSED
+tests/test_undo.py::test_new_action_discards_redo_and_noop_checkpoints_skip PASSED
+tests/test_undo.py::test_history_is_append_only PASSED
+tests/test_undo.py::test_limit PASSED
+tests/test_undo.py::test_project_properties_and_vector_layers PASSED
+tests/test_undo.py::test_describe[grid.create-Create PASSED
+grid] PASSED
+tests/test_undo.py::test_describe[dataset.assign_crs-Assign PASSED
+CRS PASSED
+to PASSED
+dataset] PASSED
+tests/test_undo.py::test_describe[vector.import-Import PASSED
+vector PASSED
+layer] PASSED
+tests/test_undo.py::test_describe[project.metadata-Edit PASSED
+project PASSED
+properties] PASSED
+tests/test_vector.py::test_round_trip_all_write_formats[gpkg] PASSED
+tests/test_vector.py::test_round_trip_all_write_formats[shapefile] PASSED
+tests/test_vector.py::test_round_trip_all_write_formats[geojson] PASSED
+tests/test_vector.py::test_round_trip_all_write_formats[kml] PASSED
+tests/test_vector.py::test_round_trip_all_write_formats[fgb] PASSED
+tests/test_vector.py::test_polygons_round_trip_and_multi_promotion PASSED
+tests/test_vector.py::test_shapefile_without_prj_warns_and_has_no_crs PASSED
+tests/test_vector.py::test_zipped_shapefile PASSED
+tests/test_vector.py::test_gpkg_layers PASSED
+tests/test_vector.py::test_shapefile_field_name_collision PASSED
+tests/test_vector.py::test_overwrite_protection PASSED
+tests/test_vector.py::test_missing_and_bad_files PASSED
+tests/test_vector.py::test_invalid_geometry_reported_and_repaired PASSED
+tests/test_vector.py::test_planar_measures PASSED
+tests/test_vector.py::test_geodesic_length_equator_analytic PASSED
+tests/test_vector.py::test_geodesic_area_matches_equal_area_projection PASSED
+tests/test_vector.py::test_add_measures_units PASSED
+tests/test_vector.py::test_reproject_round_trip_and_record PASSED
+tests/test_vector.py::test_buffer_refuses_geographic_and_has_correct_area PASSED
+tests/test_vector.py::test_clip_extent_and_polygon PASSED
+tests/test_vector.py::test_dissolve PASSED
+tests/test_vector.py::test_points_to_table_with_field_and_z PASSED
+tests/test_vector.py::test_contains_mask_and_polygon_union PASSED
+tests/test_vector.py::test_dataset_queries PASSED
+tests/test_project_storage.py::test_v2_project_migrates_to_v3_without_changes PASSED
+tests/test_project_storage.py::test_vector_and_image_roundtrip PASSED
+tests/test_project_storage.py::test_vector_without_attributes_and_corruption PASSED
+tests/test_project_storage.py::test_vector_and_image_rename_remove PASSED
+```
+
+## Phase 3 — GitHub Actions
+
+Pending: recorded after the CI run of the Phase 3 commit.
+
 ## Phase 2 (v0.2.0) — local run
 
 Run: 2026-11-20, Linux (Ubuntu 24.04, x86-64), Python 3.13.18, Qt offscreen platform.
