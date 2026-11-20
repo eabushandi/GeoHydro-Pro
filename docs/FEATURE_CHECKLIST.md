@@ -97,6 +97,7 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | Grid math, vector maps, base maps, point-density maps, raster-layer maps | ⬜ | moved to Phase 3 |
 | Vector import (shapefile, GeoJSON …) | ⬜ | moved to Phase 3 |
 | Undo / redo | ⬜ | moved to Phase 3 |
+| Windows CI | ✅ | 9/9 jobs, 179/179 tests each (run 44677653777) |
 | Interactive check on desktop Windows 10/11 | ⬜ | CI runs on Windows Server images only |
 
 ## Later phases (all ⬜ planned, visible but disabled in the UI)

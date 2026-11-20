@@ -21,7 +21,22 @@ PyKrige 1.7.3 (reference for the Kriging comparison tests).
 | `tests/test_readers.py` | 21 | 21 |
 | `tests/test_statistics_crs_units.py` | 9 | 9 |
 
-The Windows CI results for this version are added below once the run completes.
+## Phase 2 — GitHub Actions (2026-11-20, run 44677653777, commit c98b49d)
+
+All 9 jobs passed: 179 of 179 tests each (0 skipped; PyKrige installed from its Windows
+wheels, so the Kriging comparison ran on every job), plus `geohydro-pro --version` and the
+screenshot script driving the real application through the gridding and map views.
+
+| Runner | Python 3.11 | Python 3.12 | Python 3.13 |
+|---|---|---|---|
+| `windows-2022` (Server 2022, build 20348) | 179 passed | 179 passed | 179 passed |
+| `windows-2025` (Server 2025, build 26100) | 179 passed | 179 passed | 179 passed |
+| `ubuntu-24.04` | 179 passed | 179 passed | 179 passed |
+
+The warnings are deprecation notices from Matplotlib's Qt backend
+(`AA_UseHighDpiPixmaps`) and similar; none come from GeoHydro Pro's calculations. The same
+caveat as Phase 1 applies: these are Windows Server images running Qt offscreen, not an
+interactive check on desktop Windows 10/11.
 
 ### Numerical validation
 

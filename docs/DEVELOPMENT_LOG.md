@@ -118,4 +118,5 @@ machine is available in this environment.
 * Layout editing is a page view with properties and draggable elements, not a free-form
   layout editor.
 
-**Result:** 179 automated tests pass locally (Linux, offscreen). Windows CI below.
+**Result:** 179 automated tests pass locally and on all 9 CI jobs (run 44677653777:
+windows-2022, windows-2025, ubuntu-24.04 × Python 3.11–3.13).
