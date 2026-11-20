@@ -7,6 +7,9 @@ Supported formats
 * **Surfer 7 binary grid** (``DSRB``, ``.grd``) - read and write (float64 values).
 * **ESRI ASCII grid** (``.asc``) - read and write. Requires square cells.
 * **XYZ node table** (``.csv`` / ``.xyz``) - write only (X, Y, Z per node).
+* **GeoTIFF** (``.tif``) - read and write through GDAL (Phase 3), plus reading
+  of any other single-band raster GDAL supports; see
+  :mod:`geohydro.engine.raster.io` for the cell-centre convention.
 
 The Surfer layouts follow Golden Software's published grid-format
 descriptions. They are covered by round-trip tests in this repository; they
@@ -37,6 +40,7 @@ GRID_FORMATS = {
     "surfer7_binary": ("Surfer 7 binary grid (*.grd)", ".grd"),
     "esri_ascii": ("ESRI ASCII grid (*.asc)", ".asc"),
     "xyz": ("XYZ node table (*.csv)", ".csv"),
+    "geotiff": ("GeoTIFF (*.tif)", ".tif"),
 }
 
 
@@ -57,10 +61,7 @@ def read_grid(path, name: str | None = None) -> Grid:
         elif path.suffix.lower() in (".asc", ".txt") or head.lower().startswith(b"ncol"):
             g = _read_esri(path)
         else:
-            raise GridFileError(
-                f"{path.name}: unrecognised grid format (expected Surfer DSAA/DSBB/DSRB "
-                "or ESRI ASCII)."
-            )
+            g = _read_gdal(path)
     except GridFileError:
         raise
     except (ValueError, struct.error, IndexError) as exc:
@@ -162,6 +163,19 @@ def _read_esri(path: Path) -> Grid:
     return Grid(geom, z, metadata={"source": {"format": "esri_ascii"}})
 
 
+def _read_gdal(path: Path) -> Grid:
+    from ..errors import RasterError
+    from ..raster.io import read_raster_grid
+    try:
+        g = read_raster_grid(path)
+    except RasterError as exc:
+        raise GridFileError(
+            f"{path.name}: unrecognised grid format (expected Surfer DSAA/DSBB/DSRB, ESRI ASCII "
+            f"or a raster GDAL can read). {exc}") from exc
+    g.metadata["source"]["format"] = "gdal:" + str(g.metadata["source"].get("format"))
+    return g
+
+
 # ---------------------------------------------------------------- writing
 def write_grid(grid: Grid, path, fmt: str | None = None, overwrite: bool = False) -> Path:
     path = Path(path)
@@ -178,6 +192,7 @@ def write_grid(grid: Grid, path, fmt: str | None = None, overwrite: bool = False
             "surfer7_binary": _write_dsrb,
             "esri_ascii": _write_esri,
             "xyz": _write_xyz,
+            "geotiff": _write_geotiff,
         }[fmt](grid, tmp)
         os.replace(tmp, path)
     except OSError as exc:
@@ -190,7 +205,17 @@ def write_grid(grid: Grid, path, fmt: str | None = None, overwrite: bool = False
 
 def _guess_format(path: Path) -> str:
     ext = path.suffix.lower()
-    return {".asc": "esri_ascii", ".csv": "xyz", ".xyz": "xyz"}.get(ext, "surfer_ascii")
+    return {".asc": "esri_ascii", ".csv": "xyz", ".xyz": "xyz", ".tif": "geotiff",
+            ".tiff": "geotiff"}.get(ext, "surfer_ascii")
+
+
+def _write_geotiff(grid: Grid, path: Path) -> None:
+    from ..errors import RasterError
+    from ..raster.io import write_geotiff
+    try:
+        write_geotiff(grid, path, overwrite=True)
+    except RasterError as exc:
+        raise OSError(str(exc)) from exc
 
 
 def _zrange(grid: Grid) -> tuple[float, float]:
