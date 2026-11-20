@@ -245,3 +245,33 @@ def contains_mask(polygon, x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """True where (x, y) lies inside or on the boundary of ``polygon``."""
     shapely.prepare(polygon)
     return shapely.intersects_xy(polygon, x, y)
+
+
+def to_point_dataset(ds: VectorDataset, z_field: str | None = None, name: str | None = None,
+                     z_units: str = "m"):
+    """Point dataset (for gridding, post maps and statistics) from a point layer.
+
+    X and Y are the point coordinates (multipoints exploded), Z comes from
+    ``z_field`` or the 3-D coordinate, and the other attributes are kept.
+    Rows whose Z is not a number are excluded and counted in the QC report.
+    """
+    from geohydro.engine.data.dataset import PointDataset, SourceInfo
+    table = points_to_table(ds, z_field)
+    n_src = len(table)
+    excluded = 0
+    if "Z" in table:
+        ok = np.isfinite(table["Z"].to_numpy(float))
+        excluded = int((~ok).sum())
+        table = table[ok].reset_index(drop=True)
+    src = ds.source or SourceInfo(path="", format="vector layer", sha256="", size_bytes=0,
+                                  modified="")
+    from geohydro.engine.data.qc import QCReport
+    qc = QCReport(source_rows=n_src, imported_rows=len(table), excluded_rows=excluded,
+                  exclusions={"Z not a number": excluded} if excluded else {},
+                  warnings=[f"Converted from vector layer '{ds.name}'"
+                            + (f"; Z from field '{z_field}'" if z_field else "")]).to_dict()
+    return PointDataset(
+        name=name or ds.name, data=table, source=src,
+        import_settings={"from_vector": ds.id, "z_field": z_field}, qc_report=qc,
+        crs=ds.crs, xy_units=ds.xy_units, z_units=z_units, z_label=z_field or "Z",
+        x_label="X", y_label="Y")
