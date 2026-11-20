@@ -12,7 +12,7 @@ results by hand.
 
 ## The main window
 
-![GeoHydro Pro main window](../uat/screenshots/main.png)
+![GeoHydro Pro main window](../screenshots/01_start_page.png)
 
 * **Menu bar and ribbon** (top): all commands. Items marked *(planned, Phase N)*
   are future features and are disabled.
