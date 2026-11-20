@@ -1,0 +1,455 @@
+{
+  "dataset": {
+    "file": "samples/data/uat/uat_plane_utm39n.xyz",
+    "points": 328,
+    "z_min": 100.0,
+    "z_max": 230.0,
+    "surface": "z = 100 + 0.05 (x - 400000) + 0.02 (y - 2800000)",
+    "crs": "EPSG:32639"
+  },
+  "import": {
+    "name": "uat_plane_utm39n",
+    "n_points": 328,
+    "crs": "EPSG:32639",
+    "imported_rows": 328,
+    "excluded_rows": 0,
+    "duplicate_groups": 0
+  },
+  "grid_dialog_defaults": {
+    "tin": {
+      "nodes_label": "101 \u00d7 76 = 7,676 nodes; X max 402,000, Y max 2.8015e+06"
+    },
+    "natural_neighbour": {
+      "nodes_label": "101 \u00d7 76 = 7,676 nodes; X max 402,000, Y max 2.8015e+06"
+    },
+    "min_curvature": {
+      "nodes_label": "101 \u00d7 76 = 7,676 nodes; X max 402,000, Y max 2.8015e+06"
+    },
+    "idw": {
+      "nodes_label": "101 \u00d7 76 = 7,676 nodes; X max 402,000, Y max 2.8015e+06"
+    }
+  },
+  "grid_tin": {
+    "nx": 101,
+    "ny": 76,
+    "blank": 0,
+    "max_abs_error_vs_plane": 5.5706550483591855e-12,
+    "rmse_vs_plane": 1.9916550417951143e-12,
+    "z_min": 100.0,
+    "z_max": 230.0
+  },
+  "grid_natnb": {
+    "nx": 101,
+    "ny": 76,
+    "blank": 0,
+    "max_abs_error_vs_plane": 0.1911201017430244,
+    "rmse_vs_plane": 0.002181417962359922,
+    "z_min": 100.0,
+    "z_max": 230.0
+  },
+  "grid_mincurv": {
+    "nx": 101,
+    "ny": 76,
+    "blank": 0,
+    "max_abs_error_vs_plane": 2.12878603633726e-11,
+    "rmse_vs_plane": 3.5346800701851877e-12,
+    "z_min": 100.0,
+    "z_max": 230.0
+  },
+  "grid_idw": {
+    "nx": 101,
+    "ny": 76,
+    "blank": 0,
+    "max_abs_error_vs_plane": 7.747853457877994,
+    "rmse_vs_plane": 1.6845827662928397,
+    "z_min": 100.0,
+    "z_max": 230.0
+  },
+  "grid_files": {
+    "grd": {
+      "max_abs_diff": 0.0,
+      "nx": 101,
+      "ny": 76,
+      "crs": null
+    },
+    "asc": {
+      "max_abs_diff": 0.0,
+      "nx": 101,
+      "ny": 76,
+      "crs": null
+    },
+    "tif": {
+      "max_abs_diff": 0.0,
+      "nx": 101,
+      "ny": 76,
+      "crs": "EPSG:32639"
+    }
+  },
+  "calculator_A_minus_150": {
+    "z_min": -50.0,
+    "z_max": 80.0
+  },
+  "filter_mean_3": {
+    "name": "UAT plane \u2013 TIN (mean 3\u00d73)",
+    "max_abs_change_interior": 4.803268893738277e-12,
+    "max_abs_change_edges": 0.7000000000000455
+  },
+  "terrain_interior": {
+    "slope": {
+      "name": "UAT plane \u2013 TIN slope",
+      "min": 3.0824947102574,
+      "max": 3.082494710276011,
+      "blank_nodes": 350
+    },
+    "aspect": {
+      "name": "UAT plane \u2013 TIN aspect",
+      "min": 248.1985905134831,
+      "max": 248.1985905138224,
+      "blank_nodes": 350
+    },
+    "hillshade": {
+      "name": "UAT plane \u2013 TIN hillshade",
+      "min": 183.87080954311895,
+      "max": 183.87080954318063,
+      "blank_nodes": 350
+    },
+    "curvature": {
+      "name": "UAT plane \u2013 TIN total curvature",
+      "min": -4.2916781239910045e-14,
+      "max": 4.68247662865906e-14,
+      "blank_nodes": 350
+    }
+  },
+  "terrain_analytic": {
+    "slope_deg": 3.0824947102675173,
+    "slope_percent": 5.385164807134505,
+    "aspect_deg": 248.19859051364818
+  },
+  "volume_level_0": {
+    "trapezoidal": {
+      "method": "trapezoidal",
+      "upper": {
+        "grid_id": "fbe1d323e25640a3af98e2a1df0f9fbc",
+        "grid_name": "UAT plane \u2013 TIN"
+      },
+      "lower": {
+        "level": 0.0,
+        "units": "m"
+      },
+      "cut_volume": 494999999.9999999,
+      "fill_volume": 0.0,
+      "net_volume": 494999999.9999999,
+      "check_cut_minus_fill": 494999999.9999999,
+      "planar_area": 3000000.0,
+      "surface_area": 3004346.8508146657,
+      "cut_area": 3000000.0,
+      "fill_area": 0.0,
+      "cells_used": 7500,
+      "cells_excluded": 0,
+      "volume_units": "m\u00b3",
+      "area_units": "m\u00b2",
+      "warnings": []
+    },
+    "simpson": {
+      "method": "simpson",
+      "upper": {
+        "grid_id": "fbe1d323e25640a3af98e2a1df0f9fbc",
+        "grid_name": "UAT plane \u2013 TIN"
+      },
+      "lower": {
+        "level": 0.0,
+        "units": "m"
+      },
+      "cut_volume": 495000000.0,
+      "fill_volume": 0.0,
+      "net_volume": 495000000.0,
+      "check_cut_minus_fill": 495000000.0,
+      "planar_area": 3000000.0,
+      "surface_area": 3004346.8508146657,
+      "cut_area": 3000000.0,
+      "fill_area": 0.0,
+      "cells_used": 7500,
+      "cells_excluded": 0,
+      "volume_units": "m\u00b3",
+      "area_units": "m\u00b2",
+      "warnings": []
+    },
+    "simpson38": {
+      "method": "simpson38",
+      "upper": {
+        "grid_id": "fbe1d323e25640a3af98e2a1df0f9fbc",
+        "grid_name": "UAT plane \u2013 TIN"
+      },
+      "lower": {
+        "level": 0.0,
+        "units": "m"
+      },
+      "cut_volume": 494999999.99999994,
+      "fill_volume": 0.0,
+      "net_volume": 494999999.99999994,
+      "check_cut_minus_fill": 494999999.99999994,
+      "planar_area": 3000000.0,
+      "surface_area": 3004346.8508146657,
+      "cut_area": 3000000.0,
+      "fill_area": 0.0,
+      "cells_used": 7500,
+      "cells_excluded": 0,
+      "volume_units": "m\u00b3",
+      "area_units": "m\u00b2",
+      "warnings": []
+    }
+  },
+  "volume_level_150": {
+    "method": "trapezoidal",
+    "upper": {
+      "grid_id": "fbe1d323e25640a3af98e2a1df0f9fbc",
+      "grid_name": "UAT plane \u2013 TIN"
+    },
+    "lower": {
+      "level": 150.0,
+      "units": "m"
+    },
+    "cut_volume": 64502800.00000021,
+    "fill_volume": 19502800.00000031,
+    "net_volume": 44999999.9999999,
+    "check_cut_minus_fill": 44999999.999999896,
+    "planar_area": 3000000.0,
+    "surface_area": 3004346.8508146657,
+    "cut_area": 1950600.0,
+    "fill_area": 1049000.0,
+    "cells_used": 7500,
+    "cells_excluded": 0,
+    "volume_units": "m\u00b3",
+    "area_units": "m\u00b2",
+    "warnings": [
+      "104 cells contain the zero line (upper = lower); cut and fill volumes there carry an additional discretisation error. Net volume is unaffected."
+    ]
+  },
+  "volume_analytic": {
+    "level_0_m3": 495000000.0,
+    "level_150_net_m3": 45000000.0
+  },
+  "profile": {
+    "length": 2000.0,
+    "z_start": 115.0,
+    "z_end": 215.0,
+    "samples": 21
+  },
+  "contour_map": {
+    "name": "UAT plane \u2013 TIN \u2013 Contours",
+    "analytic_spacing_m_per_10m": 185.69533817705187,
+    "png_300dpi_pixels": [
+      3507,
+      2480
+    ],
+    "png_dpi": [
+      300,
+      300
+    ]
+  },
+  "undo": {
+    "maps_before": 2,
+    "maps_after_undo": 1,
+    "maps_after_redo": 2
+  },
+  "save_reopen": {
+    "before": [
+      1,
+      14,
+      2
+    ],
+    "after": [
+      1,
+      14,
+      2
+    ]
+  },
+  "gis_files": [
+    "basemap_rgb_wgs84.tif",
+    "boreholes.gpkg",
+    "dem_50m_utm39n.tif",
+    "flood_reports.geojson",
+    "land_use.gpkg",
+    "site_boundary.geojson",
+    "wadi_channels.cpg",
+    "wadi_channels.dbf",
+    "wadi_channels.prj",
+    "wadi_channels.shp",
+    "wadi_channels.shx"
+  ],
+  "vector_import": {
+    "boreholes.gpkg": {
+      "name": "boreholes",
+      "features": 40,
+      "geometry": [
+        "Point"
+      ],
+      "fields": [
+        "bh_id",
+        "depth_m",
+        "water_level_mAMSL"
+      ],
+      "crs": "EPSG:32639"
+    },
+    "flood_reports.geojson": {
+      "name": "flood_reports",
+      "features": 420,
+      "geometry": [
+        "Point"
+      ],
+      "fields": [
+        "severity"
+      ],
+      "crs": "EPSG:4326"
+    },
+    "land_use.gpkg": {
+      "name": "land_use",
+      "features": 14,
+      "geometry": [
+        "Polygon"
+      ],
+      "fields": [
+        "class",
+        "runoff_coeff"
+      ],
+      "crs": "EPSG:32639"
+    },
+    "site_boundary.geojson": {
+      "name": "site_boundary",
+      "features": 1,
+      "geometry": [
+        "Polygon"
+      ],
+      "fields": [
+        "name",
+        "status"
+      ],
+      "crs": "EPSG:4326"
+    },
+    "wadi_channels.shp": {
+      "name": "wadi_channels",
+      "features": 4,
+      "geometry": [
+        "LineString"
+      ],
+      "fields": [
+        "name",
+        "order"
+      ],
+      "crs": "EPSG:32639"
+    }
+  },
+  "raster_import": {
+    "basemap_rgb_wgs84.tif": {
+      "as": "image",
+      "crs": "EPSG:4326",
+      "name": "basemap_rgb_wgs84"
+    },
+    "dem_50m_utm39n.tif": {
+      "as": "grid",
+      "nx": 200,
+      "ny": 200,
+      "dx": 50.0,
+      "crs": "EPSG:32639",
+      "z_min": 4.022501468658447,
+      "z_max": 29.81842613220215,
+      "blank": 0
+    }
+  },
+  "vector_processing": {
+    "buffer_geographic": {
+      "new_layers": 0,
+      "error": "Vector processing: Buffering needs a projected CRS (distances in degrees are not lengths). Reproject the layer first."
+    },
+    "reproject_flood_reports": {
+      "name": "flood_reports (EPSG:32639)",
+      "crs": "EPSG:32639",
+      "features": 420
+    },
+    "buffer_wadi_50m": {
+      "name": "wadi_channels buffer 50",
+      "features": 4,
+      "geometry": [
+        "Polygon"
+      ]
+    },
+    "land_use_measures": {
+      "name": "land_use (measures)",
+      "new_fields": [
+        "area_m2",
+        "perim_m"
+      ],
+      "total_area": 100000000.0
+    },
+    "land_use_dissolve_all": {
+      "name": "land_use dissolved",
+      "features": 1
+    }
+  },
+  "boreholes_to_points": {
+    "name": "boreholes points",
+    "n_points": 40,
+    "z_label": "depth_m",
+    "excluded": 0
+  },
+  "density_geographic": {
+    "new_grids": 0,
+    "error": "Point density: Point density needs projected coordinates (a bandwidth in degrees is not a distance). Reproject the points first."
+  },
+  "density_kde": {
+    "name": "UAT flood density",
+    "nx": 219,
+    "ny": 220,
+    "z_units": "points per km\u00b2",
+    "max": 112.24061839901839,
+    "integral_points": 419.98767575081723,
+    "bandwidth": {
+      "kernel": "quartic",
+      "bandwidth": 639.0089549738633,
+      "bandwidth_rule": "scott",
+      "normalize": "intensity",
+      "weighted": false,
+      "area_unit_factor": 1000000.0,
+      "n_points": 420
+    }
+  },
+  "density_count": {
+    "total": 420.0,
+    "nx": 56,
+    "ny": 56
+  },
+  "blank_dem_outside_boundary": {
+    "name": "dem_50m_utm39n (blanked outside)",
+    "blank": 20160,
+    "valid": 19840
+  },
+  "errors_shown": [
+    "Vector processing: Buffering needs a projected CRS (distances in degrees are not lengths). Reproject the layer first.",
+    "Point density: Point density needs projected coordinates (a bandwidth in degrees is not a distance). Reproject the points first."
+  ],
+  "gis_demo": {
+    "maps": [
+      "Terrain and drainage",
+      "Flood report density",
+      "Land use"
+    ],
+    "grids": [
+      "DEM 50 m",
+      "DEM 50 m hillshade",
+      "DEM 50 m slope",
+      "DEM inside study area",
+      "Flood report density"
+    ],
+    "vectors": [
+      "site_boundary",
+      "wadi_channels",
+      "land_use",
+      "boreholes",
+      "flood_reports"
+    ],
+    "datasets": [],
+    "images": [
+      "Base image (synthetic)"
+    ]
+  }
+}
