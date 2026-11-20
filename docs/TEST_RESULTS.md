@@ -212,9 +212,31 @@ tests/test_project_storage.py::test_vector_without_attributes_and_corruption PAS
 tests/test_project_storage.py::test_vector_and_image_rename_remove PASSED
 ```
 
-## Phase 3 — GitHub Actions
+## Phase 3 — GitHub Actions (2026-11-20, commit 1437667)
 
-Pending: recorded after the CI run of the Phase 3 commit.
+**tests workflow, run 44708856501:** all 9 jobs passed with 317 passed and 1 skipped each.
+The skipped test is `test_matches_gdal_conversion_of_esri_ascii`, which needs the GDAL
+command-line tools that the runners do not have.
+
+| Runner | Python 3.11 | Python 3.12 | Python 3.13 |
+|---|---|---|---|
+| `windows-2022` | 317 + 1 skipped | 317 + 1 skipped | 317 + 1 skipped |
+| `windows-2025` | 317 + 1 skipped | 317 + 1 skipped | 317 + 1 skipped |
+| `ubuntu-24.04` | 317 + 1 skipped | 317 + 1 skipped | 317 + 1 skipped |
+
+**windows-package workflow, run 44708856484** (Windows Server 2022, Python 3.12, PyInstaller
+6.22.3, PySide6 6.10.3 from the build requirements): frozen self-test `RESULT: all checks
+passed`, including the new GIS check; silent per-user install, self-test of the installed
+copy, and silent uninstall all passed.
+
+| Output | Size |
+|---|---|
+| `GeoHydroPro-0.3.0-Setup.exe` | 132.4 MB (132,401,035 bytes) |
+| `GeoHydroPro-0.3.0-win64.zip` | 199.8 MB (199,830,264 bytes) |
+| Unpacked application folder | 474 MB |
+
+As before, these are Windows Server images, not an interactive check on desktop Windows
+10/11.
 
 ## Phase 2 (v0.2.0) — local run
 

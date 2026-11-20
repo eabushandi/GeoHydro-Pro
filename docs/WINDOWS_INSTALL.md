@@ -14,10 +14,9 @@ from source instead, see `docs/INSTALL.md`.
 ## 1. Requirements
 
 * Windows 10 or Windows 11, 64-bit (x64). The installer refuses older systems.
-* Disk space for the application folder, which holds Python, Qt, GDAL and
-  PROJ. The installer and the zip together were 318 MB in an earlier Phase 3
-  development build. The unpacked folder is larger, and its size is printed
-  at the end of every build log ("Application folder size").
+* About 500 MB of disk space. The application folder holds Python, Qt, GDAL
+  and PROJ and measured 474 MB for version 0.3.0 (the installer itself is
+  132 MB). Every build log prints the size ("Application folder size").
 * No administrator rights for a per-user installation (the default).
 
 The memory and display recommendations in `docs/INSTALL.md` are provisional.

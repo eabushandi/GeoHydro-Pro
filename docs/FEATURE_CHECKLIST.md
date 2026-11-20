@@ -131,7 +131,8 @@ Legend: ✅ implemented and covered by automated tests · 🟡 implemented, part
 | Project format v3 (vectors, images) with v1/v2 migration | ✅ | `test_project_storage.py` |
 | Scientific documentation (equations, assumptions, limitations, validation) | ✅ | `docs/GRID_MATH.md`, `docs/GIS.md` |
 | Sample GIS datasets and GIS demo project | ✅ | synthetic, seed 20261120; self-test opens and exports it |
-| Windows installer, portable zip, frozen self-test, silent install/uninstall | ✅ | *windows-package* workflow (Windows Server 2022) |
+| Windows installer, portable zip, frozen self-test, silent install/uninstall | ✅ | *windows-package* run 44708856484 (Windows Server 2022) |
+| Windows CI | ✅ | 9/9 jobs, 317 passed + 1 skipped each (run 44708856501) |
 | Installation and troubleshooting guide | ✅ | `docs/WINDOWS_INSTALL.md` |
 | Code signing | ⬜ | needs a paid certificate; planned for production |
 | Web tile base maps (OpenStreetMap, satellite) | ⬜ | planned (network access and licence terms) |
