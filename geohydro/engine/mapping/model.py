@@ -1,7 +1,7 @@
 """Map document model: layers, map furniture and page layout (JSON-serialisable).
 
-A map references grids and point datasets by id; the renderer resolves the
-ids through a callable, so the same map can be drawn by the desktop
+A map references grids, point datasets, vector layers and images by id; the
+renderer resolves the ids through a callable, so the same map can be drawn by the desktop
 application or (later) the web backend.
 """
 
@@ -76,6 +76,7 @@ class ColourReliefLayer(Layer):
     z_max: float | None = None
     smooth: bool = True  # bilinear display interpolation between nodes
     show_colorbar: bool = True
+    clear_below: float | None = None  # values below are transparent (e.g. zero density)
 
 
 @dataclass
@@ -94,10 +95,58 @@ class PostLayer(Layer):
     label_decimals: int = 2
 
 
+SYMBOLOGY = ("single", "categorized", "graduated")
+CLASSIFICATION = ("equal_interval", "quantile")
+
+
+@dataclass
+class VectorLayer(Layer):
+    """Points, lines or polygons of a vector layer (Phase 3)."""
+
+    type: str = "vector"
+    vector_id: str = ""
+    symbology: str = "single"          # single | categorized | graduated
+    field: str | None = None           # attribute for categorized / graduated
+    palette: str = "tab10"             # categorized: qualitative; graduated: sequential
+    reverse: bool = False
+    classes: int = 5                   # graduated
+    classification: str = "quantile"   # equal_interval | quantile
+    face_color: str = "#9ecae1"
+    edge_color: str = "#2b5d8a"
+    line_width: float = 0.8
+    fill: bool = True                  # polygons: fill or outline only
+    marker: str = "o"
+    marker_size: float = 18.0
+    label_field: str | None = None
+    label_size: float = 7.0
+    show_in_legend: bool = True
+    show_in_inset: bool = True
+
+
+@dataclass
+class ImageLayer(Layer):
+    """RGB(A) raster image used as a base map (Phase 3)."""
+
+    type: str = "image"
+    image_id: str = ""
+    show_in_inset: bool = True
+
+
 LAYER_TYPES = {cls.type: cls for cls in (ContourLayer, FilledContourLayer, ColourReliefLayer,
-                                          PostLayer)}
+                                          PostLayer, VectorLayer, ImageLayer)}
 LAYER_TITLES = {"contour": "Contours", "filled_contour": "Filled contours",
-                "colour_relief": "Colour relief", "post": "Post (points)"}
+                "colour_relief": "Colour relief", "post": "Post (points)",
+                "vector": "Vector layer", "image": "Base map image"}
+SOURCE_KEYS = ("grid_id", "dataset_id", "vector_id", "image_id")
+
+
+def layer_source(lyr) -> str:
+    """Id of the project item a layer draws (grid, dataset, vector layer or image)."""
+    for k in SOURCE_KEYS:
+        v = getattr(lyr, k, "")
+        if v:
+            return v
+    return ""
 
 
 def layer_from_dict(d: dict) -> Layer:
@@ -144,8 +193,19 @@ class MapDocument:
     scale_bar: ElementPos = field(default_factory=lambda: ElementPos(True, "lower left"))
     north_arrow: ElementPos = field(default_factory=lambda: ElementPos(True, "upper right"))
     graticule: dict = field(default_factory=lambda: {"visible": True, "lines": True,
-                                                     "line_alpha": 0.25})
+                                                     "line_alpha": 0.25, "geographic": False,
+                                                     "interval_deg": None})
     annotations: list = field(default_factory=list)  # {text, x, y, size, color}
+    # ---- Phase 3 map furniture --------------------------------------------
+    legend: dict = field(default_factory=lambda: {"visible": False, "position": "lower right",
+                                                  "xy": None, "title": "Legend", "size": 8.0})
+    text_boxes: list = field(default_factory=list)  # {id, text, x, y, size, color, bold, frame, ha}
+    logo: dict = field(default_factory=lambda: {"visible": False, "data": "", "name": "",
+                                                "position": "upper left", "xy": None,
+                                                "width_mm": 25.0})
+    inset: dict = field(default_factory=lambda: {"visible": False, "position": "lower right",
+                                                 "size": 0.28, "extent": None,
+                                                 "frame_color": "#d62728"})
     id: str = field(default_factory=_new_id)
     kind: str = "map"
 
@@ -175,7 +235,7 @@ class MapDocument:
     def referenced_ids(self) -> set:
         out = set()
         for lyr in self.layers:
-            for k in ("grid_id", "dataset_id"):
+            for k in SOURCE_KEYS:
                 if getattr(lyr, k, ""):
                     out.add(getattr(lyr, k))
         return out
@@ -193,6 +253,11 @@ class MapDocument:
         known = {f.name for f in fields(cls)}
         d = {k: v for k, v in d.items() if k in known}
         d["layers"] = [layer_from_dict(x) for x in d.get("layers", [])]
+        # documents from format v2 lack the Phase 3 keys: fill them with defaults
+        defaults = cls()
+        for k in ("graticule", "legend", "logo", "inset"):
+            if k in d and isinstance(d[k], dict):
+                d[k] = {**getattr(defaults, k), **d[k]}
         for k in ("scale_bar", "north_arrow"):
             if k in d and isinstance(d[k], dict):
                 e = dict(d[k])

@@ -65,7 +65,7 @@ def test_map_document_roundtrip():
     back.move_layer(back.layers[0].id, +1)
     assert back.layers[1].type == "contour"
     with pytest.raises(MapError):
-        layer_from_dict({"type": "vector"})
+        layer_from_dict({"type": "hologram"})  # "vector" became a real layer type in Phase 3
     with pytest.raises(MapError):
         MapDocument(page="B7")
 
@@ -136,6 +136,6 @@ def test_export_resolution_and_format_checks(tmp_path, grid):
         w, h = im.size
         assert abs(w - 297 / 25.4 * 150) <= 1 and abs(h - 210 / 25.4 * 150) <= 1
     with pytest.raises(MapError):
-        export_map(doc, resolver(grid), tmp_path / "a.tif")
+        export_map(doc, resolver(grid), tmp_path / "a.bmp")  # TIFF is supported since Phase 3
     with pytest.raises(MapError):
         export_map(doc, resolver(grid), tmp_path / "b.png", dpi=5000)

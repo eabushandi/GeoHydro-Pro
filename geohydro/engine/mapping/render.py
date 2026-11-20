@@ -21,11 +21,16 @@ from matplotlib.patches import Polygon
 
 from ..errors import MapError
 from .levels import get_cmap
-from .model import (ColourReliefLayer, ContourLayer, FilledContourLayer, MapDocument,
-                    PostLayer)
+from . import gis_render
+from .model import (ColourReliefLayer, ContourLayer, FilledContourLayer, ImageLayer,
+                    MapDocument, PostLayer, VectorLayer, layer_source)
 
 EXPORT_FORMATS = {"png": "PNG image", "jpg": "JPEG image", "jpeg": "JPEG image",
+                  "tif": "TIFF image", "tiff": "TIFF image",
                   "svg": "SVG vector graphic", "pdf": "PDF document"}
+#: Text is embedded as TrueType (Type 42) in PDF/PS so that it stays editable
+#: and searchable in publication workflows (journals often require this).
+EXPORT_RC = {"pdf.fonttype": 42, "ps.fonttype": 42}
 MAX_POST_LABELS = 3000
 
 _LOC = {"upper right": 1, "upper left": 2, "lower left": 3, "lower right": 4, "center": 10}
@@ -39,6 +44,7 @@ class RenderInfo:
     ax: object = None
     north_convergence: float | None = None  # degrees clockwise from grid north
     scale_text: str = ""
+    legend_entries: list = field(default_factory=list)  # (handle, label, group)
 
 
 # ------------------------------------------------------------------ helpers
@@ -55,12 +61,45 @@ def _crs_info(doc: MapDocument):
 def _layer_extent(obj):
     if obj is None:
         return None
-    if getattr(obj, "kind", "") == "grid":
+    kind = getattr(obj, "kind", "")
+    if kind == "grid":
         g = obj.geometry
         return g.x_min, g.x_max, g.y_min, g.y_max
+    if kind == "image":
+        return tuple(obj.extent)
+    if kind == "vector":
+        return obj.bounds()
     if hasattr(obj, "extent"):
         return obj.extent()
     return None
+
+
+def _to_map_crs(obj, doc, lyr, info):
+    """Reproject vector layers and images to the map CRS (other data is not reprojected)."""
+    kind = getattr(obj, "kind", "")
+    if kind not in ("vector", "image") or obj is None:
+        return obj
+    src = getattr(obj, "crs", None)
+    if not doc.crs or not src:
+        if bool(doc.crs) != bool(src):
+            info.warnings.append(f"Layer '{lyr.name}': the map or the layer has no CRS, so it "
+                                 "is drawn with its coordinates as they are.")
+        return obj
+    try:
+        from pyproj import CRS
+        if CRS.from_user_input(src) == CRS.from_user_input(doc.crs):
+            return obj
+        if kind == "vector":
+            from ..vector.ops import reproject
+            return reproject(obj, doc.crs)
+        from ..raster.image import reproject_image
+        info.warnings.append(f"Layer '{lyr.name}': image reprojected to the map CRS for "
+                             "display (nearest neighbour).")
+        return reproject_image(obj, doc.crs)
+    except Exception as exc:
+        info.warnings.append(f"Layer '{lyr.name}': could not be reprojected to the map CRS "
+                             f"({exc}); drawn unprojected.")
+        return obj
 
 
 def _union(exts):
@@ -231,10 +270,12 @@ def render_map(doc: MapDocument, resolve, fig: Figure | None = None,
 
     objs = {}
     for lyr in doc.layers:
-        ref = getattr(lyr, "grid_id", "") or getattr(lyr, "dataset_id", "")
+        ref = layer_source(lyr)
         obj = resolve(ref) if ref else None
         if obj is None:
             info.warnings.append(f"Layer '{lyr.name}': its data source is missing.")
+        elif lyr.visible or getattr(lyr, "show_in_inset", False):
+            obj = _to_map_crs(obj, doc, lyr, info)
         objs[lyr.id] = obj
     ext = tuple(doc.extent) if doc.extent else _union(
         [_layer_extent(objs[lyr.id]) for lyr in doc.layers if lyr.visible])
@@ -302,6 +343,10 @@ def render_map(doc: MapDocument, resolve, fig: Figure | None = None,
     else:
         ax.set_xticks([])
         ax.set_yticks([])
+    try:
+        gis_render.draw_latlon_graticule(ax, doc, ext, info, len(doc.layers) + 3)
+    except Exception as exc:  # drawing aid only: report and continue
+        info.warnings.append(f"Latitude/longitude graticule not drawn: {exc}")
 
     _titles(fig, doc, ax, info)
     if show_cb and colour_mappable is not None:
@@ -321,6 +366,11 @@ def render_map(doc: MapDocument, resolve, fig: Figure | None = None,
         ax.annotate(a.get("text", ""), (a.get("x"), a.get("y")), xycoords="data",
                     fontsize=a.get("size", 9), color=a.get("color", "black"),
                     zorder=len(doc.layers) + 5)
+    gis_render.draw_legend(ax, doc, info)
+    gis_render.draw_logo(fig, ax, doc, info)
+    gis_render.draw_inset(fig, ax, doc, objs, ext, info,
+                          lambda a, lyr, obj, z: _draw_layer(a, lyr, obj, z, RenderInfo()))
+    gis_render.draw_text_boxes(fig, doc, info)
     return fig, info
 
 
@@ -339,6 +389,16 @@ def _titles(fig, doc, ax, info):
 
 def _draw_layer(ax, lyr, obj, zorder, info):
     kind = getattr(obj, "kind", "")
+    if isinstance(lyr, VectorLayer):
+        if kind != "vector":
+            raise MapError("this layer type needs a vector layer.")
+        gis_render.draw_vector(ax, lyr, obj, zorder, info)
+        return None
+    if isinstance(lyr, ImageLayer):
+        if kind != "image":
+            raise MapError("this layer type needs a raster image.")
+        gis_render.draw_image(ax, lyr, obj, zorder)
+        return None
     if isinstance(lyr, (ContourLayer, FilledContourLayer, ColourReliefLayer)):
         if kind != "grid":
             raise MapError("this layer type needs a grid.")
@@ -349,6 +409,8 @@ def _draw_layer(ax, lyr, obj, zorder, info):
         zmin, zmax = float(z.min()), float(z.max())
         xs, ys = g.x_nodes(), g.y_nodes()
         if isinstance(lyr, ColourReliefLayer):
+            if lyr.clear_below is not None:
+                z = np.ma.masked_less(z, lyr.clear_below)
             vmin = lyr.z_min if lyr.z_min is not None else zmin
             vmax = lyr.z_max if lyr.z_max is not None else zmax
             if vmax <= vmin:
@@ -385,6 +447,9 @@ def _draw_layer(ax, lyr, obj, zorder, info):
         else:
             kw["colors"] = lyr.line_color
         cs = ax.contour(xs, ys, z, **kw)
+        info.legend_entries.append((Line2D([], [], color=lyr.line_color if not lyr.color_by_level
+                                           else "#555555", linewidth=lyr.line_width),
+                                    lyr.name, None))
         if lyr.labels:
             lab_levels = levels[major] if major.any() else levels
             lab_levels = [v for v in lab_levels if zmin <= v <= zmax]
@@ -408,6 +473,10 @@ def _draw_layer(ax, lyr, obj, zorder, info):
             mp = sc
         else:
             ax.scatter(x, y, c=lyr.face_color, **kw)
+        info.legend_entries.append((Line2D([], [], linestyle="none", marker=lyr.marker,
+                                           markersize=6, markerfacecolor=lyr.face_color
+                                           if not mp else "#777777",
+                                           markeredgecolor=lyr.edge_color), lyr.name, None))
         col = lyr.label_column
         if col:
             if col not in d:
@@ -436,19 +505,25 @@ def export_map(doc: MapDocument, resolve, path, dpi: int = 300, overwrite: bool 
     path = Path(path)
     fmt = path.suffix.lower().lstrip(".")
     if fmt not in EXPORT_FORMATS:
-        raise MapError(f"Unsupported export format '.{fmt}' (use PNG, JPEG, SVG or PDF).")
+        raise MapError(f"Unsupported export format '.{fmt}' (use PNG, JPEG, TIFF, SVG or PDF).")
     if not (50 <= int(dpi) <= 1200):
         raise MapError("Resolution must be between 50 and 1200 dpi.")
     if path.exists() and not overwrite:
         raise MapError(f"{path} already exists.")
-    fig, info = render_map(doc, resolve)
+    import matplotlib
+    with matplotlib.rc_context(EXPORT_RC):
+        fig, info = render_map(doc, resolve)
     tmp = path.with_name(f".{path.stem}.tmp{path.suffix}")
     try:
-        kw = {"format": "jpeg" if fmt in ("jpg", "jpeg") else fmt, "dpi": int(dpi),
-              "facecolor": "white"}
+        kw = {"format": {"jpg": "jpeg", "jpeg": "jpeg", "tif": "tiff"}.get(fmt, fmt),
+              "dpi": int(dpi), "facecolor": "white"}
         if fmt in ("jpg", "jpeg"):
             kw["pil_kwargs"] = {"quality": 92}
-        fig.savefig(tmp, **kw)
+        if fmt in ("tif", "tiff"):
+            # lossless LZW; the resolution tag carries the dpi for print workflows
+            kw["pil_kwargs"] = {"compression": "tiff_lzw"}
+        with matplotlib.rc_context(EXPORT_RC):
+            fig.savefig(tmp, **kw)
         os.replace(tmp, path)
     except OSError as exc:
         raise MapError(f"Could not write {path}: {exc}") from exc

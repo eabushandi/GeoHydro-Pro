@@ -150,13 +150,13 @@ def test_xlsx_float_precision_preserved(tmp_path):
 
 
 def test_all_sample_files_read(samples):
-    for f in samples.iterdir():
+    for f in (p for p in samples.iterdir() if p.is_file()):   # gis/ holds GIS files
         t = read_table(f)
         assert t.total_data_rows > 0, f
 
 
 def test_reading_never_modifies_source(samples):
-    for f in samples.iterdir():
+    for f in (p for p in samples.iterdir() if p.is_file()):
         before = hashlib.sha256(f.read_bytes()).hexdigest()
         read_table(f)
         assert hashlib.sha256(f.read_bytes()).hexdigest() == before

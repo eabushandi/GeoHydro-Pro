@@ -223,8 +223,238 @@ def _add_sample_grids_and_maps(proj, terrain, wells):
                             PostLayer(dataset_id=wells.id, name="Wells", label_column="Well_ID")]))
 
 
+# ============================================================== Phase 3 GIS samples
+GIS_SEED = 20261120
+GIS_OUT = OUT / "gis"
+
+
+def _utm_to_geo(x, y):
+    from pyproj import Transformer
+    return Transformer.from_crs(32639, 4326, always_xy=True).transform(x, y)
+
+
+def make_gis_data(rng):
+    """Synthetic vector and raster files in the same 10 km UTM 39N window."""
+    sys.path.insert(0, str(HERE.parent))
+    import rasterio
+    import shapely
+    from rasterio.transform import from_origin
+
+    from geohydro.engine.vector import VectorDataset
+    from geohydro.engine.vector.io import write_vector
+
+    GIS_OUT.mkdir(parents=True, exist_ok=True)
+    for f in GIS_OUT.glob("*"):
+        f.unlink()
+    # --- DEM GeoTIFF: terrain_surface sampled at 50 m cell centres (float32) ---------
+    cs = 50.0
+    n = int(SIZE / cs)
+    xc = X0 + cs / 2 + cs * np.arange(n)
+    yc = Y0 + SIZE - cs / 2 - cs * np.arange(n)          # rows north -> south
+    X, Y = np.meshgrid(xc, yc)
+    dem = terrain_surface(X, Y).astype("float32")
+    with rasterio.open(GIS_OUT / "dem_50m_utm39n.tif", "w", driver="GTiff", width=n, height=n,
+                       count=1, dtype="float32", crs="EPSG:32639", nodata=-9999.0,
+                       transform=from_origin(X0, Y0 + SIZE, cs, cs), compress="deflate",
+                       predictor=3) as d:
+        d.write(dem, 1)
+        d.set_band_unit(1, "m")
+        d.set_band_description(1, "Elevation")
+        d.update_tags(DESCRIPTION="SYNTHETIC DEM: terrain_surface() of samples/generate_samples.py")
+    # --- RGB base image in WGS 84 (exercises on-the-fly reprojection) ---------------
+    lon0, lat0 = _utm_to_geo(X0 - 1500, Y0 - 1500)
+    lon1, lat1 = _utm_to_geo(X0 + SIZE + 1500, Y0 + SIZE + 1500)
+    w, h = 900, 900
+    lons = lon0 + (lon1 - lon0) * (np.arange(w) + 0.5) / w
+    lats = lat1 - (lat1 - lat0) * (np.arange(h) + 0.5) / h
+    LO, LA = np.meshgrid(lons, lats)
+    from pyproj import Transformer
+    ux, uy = Transformer.from_crs(4326, 32639, always_xy=True).transform(LO, LA)
+    z = terrain_surface(ux, uy)
+    t = np.clip((z - z.min()) / (np.ptp(z) + 1e-9), 0, 1)
+    sand = np.array([222, 200, 160]) / 255
+    rock = np.array([150, 110, 80]) / 255
+    rgb = (1 - t)[..., None] * sand + t[..., None] * rock
+    gy, gx = np.gradient(z)
+    shade = np.clip(0.75 + 0.9 * (gx - gy) / (np.abs(gx).max() + 1e-9), 0.45, 1.15)
+    rgb = np.clip(rgb * shade[..., None] + rng.normal(0, 0.02, rgb.shape), 0, 1)
+    img = (rgb * 255).astype("uint8").transpose(2, 0, 1)
+    with rasterio.open(GIS_OUT / "basemap_rgb_wgs84.tif", "w", driver="GTiff", width=w,
+                       height=h, count=3, dtype="uint8", crs="EPSG:4326", photometric="RGB",
+                       transform=from_origin(lon0, lat1, (lon1 - lon0) / w, (lat1 - lat0) / h),
+                       compress="deflate") as d:
+        d.write(img)
+        d.update_tags(DESCRIPTION="SYNTHETIC shaded base image (not imagery)")
+    # --- site boundary (GeoJSON, WGS 84 by RFC 7946) --------------------------------
+    ang = np.linspace(0, 2 * np.pi, 49)[:-1]
+    r = 4300 * (1 + 0.12 * np.sin(3 * ang) + 0.05 * np.cos(5 * ang))
+    bx, by = X0 + 5000 + r * np.cos(ang), Y0 + 5000 + 0.85 * r * np.sin(ang)
+    blon, blat = _utm_to_geo(bx, by)
+    boundary = shapely.Polygon(np.column_stack([blon, blat]))
+    write_vector(VectorDataset("site_boundary", np.array([boundary], dtype=object),
+                               pd.DataFrame({"name": ["Study area"], "status": ["synthetic"]}),
+                               crs="EPSG:4326"), GIS_OUT / "site_boundary.geojson")
+    # --- drainage lines (Shapefile, UTM) ---------------------------------------------
+    def channel(points):
+        return shapely.LineString([(X0 + u * SIZE, Y0 + v * SIZE) for u, v in points])
+    lines = [channel([(0.05, 0.95), (0.25, 0.85), (0.45, 0.78), (0.60, 0.75), (0.80, 0.62),
+                      (0.98, 0.55)]),
+             channel([(0.30, 0.98), (0.42, 0.88), (0.55, 0.80), (0.60, 0.75)]),
+             channel([(0.62, 0.05), (0.66, 0.25), (0.70, 0.45), (0.80, 0.62)]),
+             channel([(0.15, 0.10), (0.30, 0.25), (0.48, 0.38), (0.58, 0.48), (0.70, 0.45)])]
+    write_vector(VectorDataset("wadi_channels", np.array(lines, dtype=object),
+                               pd.DataFrame({"name": ["Wadi A", "Wadi A trib.", "Wadi B",
+                                                      "Wadi C"],
+                                             "order": [3, 1, 2, 2]}), crs="EPSG:32639"),
+                 GIS_OUT / "wadi_channels.shp")
+    # --- land use polygons (GeoPackage, UTM): Voronoi cells clipped to the site box ---
+    seeds = shapely.MultiPoint(np.column_stack([X0 + rng.uniform(0, SIZE, 14),
+                                                Y0 + rng.uniform(0, SIZE, 14)]))
+    box = shapely.box(X0, Y0, X0 + SIZE, Y0 + SIZE)
+    cells = [c.intersection(box) for c in shapely.get_parts(
+        shapely.voronoi_polygons(seeds, extend_to=box))]
+    classes = ["Bare ground", "Rangeland", "Agriculture", "Urban", "Sabkha"]
+    coeff = {"Bare ground": 0.45, "Rangeland": 0.30, "Agriculture": 0.20, "Urban": 0.85,
+             "Sabkha": 0.60}
+    lu = [classes[i % len(classes)] for i in rng.permutation(len(cells))]
+    write_vector(VectorDataset("land_use", np.array(cells, dtype=object),
+                               pd.DataFrame({"class": lu,
+                                             "runoff_coeff": [coeff[c] for c in lu]}),
+                               crs="EPSG:32639"), GIS_OUT / "land_use.gpkg")
+    # --- boreholes (GeoPackage points with attributes) --------------------------------
+    nb = 40
+    x = X0 + rng.uniform(500, SIZE - 500, nb)
+    y = Y0 + rng.uniform(500, SIZE - 500, nb)
+    wl = groundwater_head(x, y) + rng.normal(0, 0.05, nb)
+    write_vector(VectorDataset("boreholes", shapely.points(np.column_stack([x, y])),
+                               pd.DataFrame({"bh_id": [f"BH{i + 1:02d}" for i in range(nb)],
+                                             "depth_m": np.round(rng.uniform(15, 60, nb), 1),
+                                             "water_level_mAMSL": np.round(wl, 3)}),
+                               crs="EPSG:32639"), GIS_OUT / "boreholes.gpkg")
+    # --- flood reports: clustered points for density mapping (GeoJSON, WGS 84) -------
+    centres = [(0.60, 0.75, 500), (0.80, 0.62, 350), (0.48, 0.38, 400)]
+    px, py = [], []
+    for u, v, s in centres:
+        k = 120
+        px.append(X0 + u * SIZE + rng.normal(0, s, k))
+        py.append(Y0 + v * SIZE + rng.normal(0, s, k))
+    px.append(X0 + rng.uniform(0, SIZE, 60))
+    py.append(Y0 + rng.uniform(0, SIZE, 60))
+    px, py = np.concatenate(px), np.concatenate(py)
+    flon, flat = _utm_to_geo(px, py)
+    sev = rng.integers(1, 4, px.size)
+    write_vector(VectorDataset("flood_reports", shapely.points(np.column_stack([flon, flat])),
+                               pd.DataFrame({"severity": sev}), crs="EPSG:4326"),
+                 GIS_OUT / "flood_reports.geojson")
+
+
+def make_gis_demo_project():
+    """Phase 3 demonstration project built only from the files in samples/data/gis."""
+    sys.path.insert(0, str(HERE.parent))
+    from geohydro.engine.gridding.grid import GridGeometry
+    from geohydro.engine.gridmath import terrain
+    from geohydro.engine.gridmath.blanking import blank_polygon
+    from geohydro.engine.gridmath.density import kernel_density
+    from geohydro.engine.mapping.levels import LevelSpec
+    from geohydro.engine.mapping.model import (ColourReliefLayer, ContourLayer, ImageLayer,
+                                               MapDocument, VectorLayer)
+    from geohydro.engine.raster.io import read_raster_grid, read_raster_image
+    from geohydro.engine.vector.io import read_vector
+    from geohydro.engine.vector.ops import points_to_table, reproject
+    from geohydro.project import Project, save_project
+
+    p = Project(name="GIS Demonstration (synthetic)", author="GeoHydro Pro samples",
+                description="Phase 3 demonstration: vector and raster import, terrain analysis, "
+                            "point density, blanking and cartographic layout. All data are "
+                            "synthetic.", default_crs="EPSG:32639")
+    V = {n: p.add_vector(read_vector(GIS_OUT / f))
+         for n, f in (("boundary", "site_boundary.geojson"), ("channels", "wadi_channels.shp"),
+                      ("landuse", "land_use.gpkg"), ("boreholes", "boreholes.gpkg"),
+                      ("floods", "flood_reports.geojson"))}
+    base = p.add_image(read_raster_image(GIS_OUT / "basemap_rgb_wgs84.tif",
+                                         name="Base image (synthetic)"))
+    dem = p.add_grid(read_raster_grid(GIS_OUT / "dem_50m_utm39n.tif", name="DEM 50 m"))
+    hs = p.add_grid(terrain.hillshade(dem, 315, 45, z_factor=5))
+    sl = p.add_grid(terrain.slope(dem))
+    inside = p.add_grid(blank_polygon(dem, V["boundary"], outside=True,
+                                      name="DEM inside study area"))
+    fl = reproject(V["floods"], "EPSG:32639")
+    t = points_to_table(fl)
+    kde = p.add_grid(kernel_density(t["X"], t["Y"], GridGeometry(X0, X0 + SIZE, Y0, Y0 + SIZE,
+                                                                 101, 101),
+                                    h=600, kernel="quartic", area_unit_factor=1e6,
+                                    crs="EPSG:32639", name="Flood report density",
+                                    source={"vector_id": V["floods"].id,
+                                            "vector_name": V["floods"].name}))
+    kde.z_units = "reports per km²"
+    ext = [X0, X0 + SIZE, Y0, Y0 + SIZE]
+    common = dict(crs="EPSG:32639", extent=ext)
+    note = {"id": "note", "text": "Synthetic demonstration data. Not for engineering use.",
+            "x": 0.02, "y": 0.015, "size": 7, "color": "#555555", "frame": False}
+    p.add_map(MapDocument(
+        name="Terrain and drainage", title="Terrain, drainage and boreholes",
+        subtitle="DEM 50 m with hillshade · WGS 84 / UTM 39N", **common,
+        layers=[ColourReliefLayer(grid_id=hs.id, name="Hillshade", palette="gray",
+                                  show_colorbar=False),
+                ColourReliefLayer(grid_id=dem.id, name="Elevation", palette="terrain",
+                                  opacity=0.55),
+                ContourLayer(grid_id=dem.id, name="Contours (5 m)", line_width=0.3,
+                             major_width=0.7, levels=LevelSpec("interval", interval=5),
+                             line_color="#5a4632"),
+                VectorLayer(vector_id=V["channels"].id, name="Wadi channels",
+                            edge_color="#1f78b4", line_width=1.6),
+                VectorLayer(vector_id=V["boundary"].id, name="Study area", fill=False,
+                            edge_color="#d62728", line_width=1.4),
+                VectorLayer(vector_id=V["boreholes"].id, name="Boreholes: water level (m AMSL)",
+                            symbology="graduated", field="water_level_mAMSL",
+                            palette="Blues", classes=4, marker="^", marker_size=34,
+                            edge_color="#08306b", label_field="bh_id", label_size=5.5)],
+        legend={"visible": True, "position": "lower right", "xy": None, "title": "Legend",
+                "size": 7.0},
+        inset={"visible": True, "position": "upper left", "size": 0.26, "extent": None,
+               "frame_color": "#d62728"},
+        graticule={"visible": True, "lines": False, "line_alpha": 0.25, "geographic": True,
+                   "interval_deg": None},
+        text_boxes=[note]))
+    p.add_map(MapDocument(
+        name="Flood report density", title="Flood report density",
+        subtitle="Quartic kernel, bandwidth 600 m · reports per km²", **common,
+        layers=[ImageLayer(image_id=base.id, name="Base image"),
+                ColourReliefLayer(grid_id=kde.id, name="Density", palette="inferno",
+                                  opacity=0.65, clear_below=2.0),
+                VectorLayer(vector_id=V["floods"].id, name="Flood reports", marker=".",
+                            marker_size=8, face_color="#111111", edge_color="#111111"),
+                VectorLayer(vector_id=V["boundary"].id, name="Study area", fill=False,
+                            edge_color="#ffffff", line_width=1.4)],
+        legend={"visible": True, "position": "lower right", "xy": None, "title": None,
+                "size": 7.0}, text_boxes=[note]))
+    p.add_map(MapDocument(
+        name="Land use", title="Land use and runoff coefficient", **common,
+        subtitle="Categorised by class; labels show the runoff coefficient",
+        layers=[VectorLayer(vector_id=V["landuse"].id, name="Land use", symbology="categorized",
+                            field="class", palette="Set2", edge_color="#555555",
+                            line_width=0.5, label_field="runoff_coeff"),
+                VectorLayer(vector_id=V["channels"].id, name="Wadi channels",
+                            edge_color="#1f78b4", line_width=1.4)],
+        legend={"visible": True, "position": "lower right", "xy": None, "title": "Land use",
+                "size": 7.0}, colorbar={"visible": False, "label": "", "location": "right"},
+        text_boxes=[note]))
+    _ = (sl, inside)
+    target = HERE / "gis_demo_project.ghproj"
+    if target.exists():
+        target.unlink()
+    save_project(p, target)
+    for f in HERE.glob("gis_demo_project.ghproj.bak"):
+        f.unlink()
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    if "--gis" in sys.argv:  # Phase 3 files only; leaves the Phase 1/2 samples untouched
+        make_gis_data(np.random.default_rng(GIS_SEED))
+        make_gis_demo_project()
+        print(f"GIS sample data written to {GIS_OUT}")
+        return
     rng = np.random.default_rng(SEED)
     make_terrain(rng)
     make_wells(rng)
@@ -233,6 +463,8 @@ def main():
     make_stations(rng)
     make_contaminant(rng)
     make_sample_project()
+    make_gis_data(np.random.default_rng(GIS_SEED))
+    make_gis_demo_project()
     print(f"Sample data written to {OUT}")
 
 
